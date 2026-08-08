@@ -1,9 +1,6 @@
 <template>
   <div class="examples-page">
-    <header class="page-header">
-      <h1 class="page-title">例句库</h1>
-      <p class="page-subtitle">来自真实语境的例句</p>
-    </header>
+    <PageHeader title="例句库" subtitle="来自真实语境的例句" />
 
     <!-- Search Section -->
     <section class="search-section">
@@ -75,7 +72,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { examplesApi } from '../api'
-import { BaseInput, BaseButton, Skeleton, EmptyState, PronunciationBtn } from '../components'
+import { PageHeader, BaseInput, BaseButton, Skeleton, EmptyState, PronunciationBtn } from '../components'
 import { useToast } from '../composables/useToast'
 import { debounce } from '../utils/debounce'
 import type { ExampleSearchResult, CEFRLevel } from '../types'

@@ -1,9 +1,6 @@
 <template>
   <div class="reading-page">
-    <header class="page-header">
-      <h1 class="page-title">阅读</h1>
-      <p class="page-subtitle">来自全球的英文文章</p>
-    </header>
+    <PageHeader title="阅读" subtitle="来自全球的英文文章" />
 
     <!-- Filters -->
     <section class="filters-section">
@@ -133,7 +130,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { articlesApi } from '../api'
-import { BaseModal, BaseButton, Skeleton, EmptyState, WordTooltip, ReadingTimer, TranslationToggle, PronunciationBtn } from '../components'
+import { PageHeader, BaseModal, BaseButton, Skeleton, EmptyState, WordTooltip, ReadingTimer, TranslationToggle, PronunciationBtn } from '../components'
 import { useToast } from '../composables/useToast'
 import { debounce } from '../utils/debounce'
 import type { Article, CEFRLevel, ArticleSource } from '../types'

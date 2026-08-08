@@ -1,9 +1,6 @@
 <template>
   <div class="dashboard-page">
-    <header class="page-header">
-      <h1 class="page-title">学习仪表盘</h1>
-      <p class="page-subtitle">今日学习概览</p>
-    </header>
+    <PageHeader title="学习仪表盘" subtitle="今日学习概览" />
 
     <!-- Stats Cards -->
     <section class="stats-grid">
@@ -144,7 +141,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { dashboardApi, contentApi } from '../api'
-import { StudyHeatmap, Skeleton, DailyGoal, WeeklyReport, BaseTag } from '../components'
+import { PageHeader, StudyHeatmap, Skeleton, DailyGoal, WeeklyReport, BaseTag } from '../components'
 import type { DashboardStats, HeatmapData, ChartDataPoint, ContentItem } from '../types'
 
 const loading = ref(true)

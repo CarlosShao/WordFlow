@@ -1,9 +1,6 @@
 <template>
   <div class="mistakes-page">
-    <header class="page-header">
-      <h1 class="page-title">错题本</h1>
-      <p class="page-subtitle">薄弱点追踪与复习</p>
-    </header>
+    <PageHeader title="错题本" subtitle="薄弱点追踪与复习" />
 
     <!-- Stats -->
     <section class="stats-section">
@@ -96,7 +93,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { mistakesApi } from '../api'
-import { BaseTabs, BaseButton, Skeleton, EmptyState, PronunciationBtn } from '../components'
+import { PageHeader, BaseTabs, BaseButton, Skeleton, EmptyState, PronunciationBtn } from '../components'
 import { useToast } from '../composables/useToast'
 import type { MistakeRecord, PracticeType } from '../types'
 

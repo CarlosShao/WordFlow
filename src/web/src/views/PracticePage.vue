@@ -1,9 +1,6 @@
 <template>
   <div class="practice-page">
-    <header class="page-header">
-      <h1 class="page-title">练习</h1>
-      <p class="page-subtitle">各类型练习题</p>
-    </header>
+    <PageHeader title="练习" subtitle="各类型练习题" />
 
     <!-- Practice Types -->
     <section class="practice-types">
@@ -44,10 +41,7 @@
 
     <!-- Timed Mode Toggle -->
     <section class="timed-mode-section">
-      <label class="toggle">
-        <input type="checkbox" v-model="timedMode" />
-        <span class="toggle-slider"></span>
-      </label>
+      <Toggle v-model="timedMode" />
       <span class="timed-mode-label">限时模式 (120秒)</span>
     </section>
 
@@ -154,7 +148,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { practiceApi } from '../api'
-import { BaseButton, BaseProgress, Skeleton, EmptyState, TimerCountdown, StreakAnimation, PracticeSummary } from '../components'
+import { PageHeader, BaseButton, BaseProgress, Skeleton, EmptyState, Toggle, TimerCountdown, StreakAnimation, PracticeSummary } from '../components'
 import { useToast } from '../composables/useToast'
 import type { PracticeType, PracticeQuestion, CEFRLevel } from '../types'
 

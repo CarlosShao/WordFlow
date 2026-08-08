@@ -1,9 +1,6 @@
 <template>
   <div class="listening-page">
-    <header class="page-header">
-      <h1 class="page-title">听力</h1>
-      <p class="page-subtitle">来自全球的听力素材</p>
-    </header>
+    <PageHeader title="听力" subtitle="来自全球的听力素材" />
 
     <!-- Filters -->
     <section class="filters-section">
@@ -148,7 +145,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { listeningApi } from '../api'
-import { AudioPlayer, Skeleton, EmptyState, DictationMode, TranscriptHighlight, PronunciationBtn } from '../components'
+import { PageHeader, AudioPlayer, Skeleton, EmptyState, DictationMode, TranscriptHighlight, PronunciationBtn } from '../components'
 import { useToast } from '../composables/useToast'
 import type { ListeningMaterial, CEFRLevel } from '../types'
 

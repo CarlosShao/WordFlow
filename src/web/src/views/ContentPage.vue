@@ -1,10 +1,6 @@
 <template>
   <div class="content-page">
-    <!-- Page Header -->
-    <header class="page-header">
-      <h1 class="page-title">内容</h1>
-      <p class="page-subtitle">发现优质英语学习内容</p>
-    </header>
+    <PageHeader title="内容" subtitle="发现优质英语学习内容" />
 
     <!-- Filter Bar -->
     <section class="filter-bar">
@@ -138,7 +134,7 @@
 import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { contentApi } from '../api'
-import { Skeleton, EmptyState, BaseTabs } from '../components'
+import { PageHeader, Skeleton, EmptyState, BaseTabs } from '../components'
 import { useToast } from '../composables/useToast'
 import type { ContentItem, ContentType, ContentCategory, CEFRLevel } from '../types'
 
@@ -149,7 +145,7 @@ const loading = ref(true)
 const items = ref<ContentItem[]>([])
 const selectedType = ref('')
 const selectedCategory = ref('')
-const selectedDifficulty = ref('')
+const selectedDifficulty = ref<CEFRLevel | ''>('')
 
 const typeTabs = [
   { value: '', label: '全部' },
@@ -168,12 +164,12 @@ const categoryOptions = [
 ]
 
 const difficultyLevels = [
-  { value: 'A1', label: 'A1' },
-  { value: 'A2', label: 'A2' },
-  { value: 'B1', label: 'B1' },
-  { value: 'B2', label: 'B2' },
-  { value: 'C1', label: 'C1' },
-  { value: 'C2', label: 'C2' }
+  { value: 'A1' as CEFRLevel, label: 'A1' },
+  { value: 'A2' as CEFRLevel, label: 'A2' },
+  { value: 'B1' as CEFRLevel, label: 'B1' },
+  { value: 'B2' as CEFRLevel, label: 'B2' },
+  { value: 'C1' as CEFRLevel, label: 'C1' },
+  { value: 'C2' as CEFRLevel, label: 'C2' }
 ]
 
 async function fetchContent() {
@@ -182,7 +178,7 @@ async function fetchContent() {
     const res = await contentApi.getList({
       type: (selectedType.value as ContentType) || undefined,
       category: (selectedCategory.value as ContentCategory) || undefined,
-      difficulty: (selectedDifficulty.value as CEFRLevel) || undefined
+      difficulty: selectedDifficulty.value || undefined
     })
     if (res.success) {
       items.value = res.data.items

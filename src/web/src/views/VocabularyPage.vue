@@ -1,9 +1,6 @@
 <template>
   <div class="vocabulary-page">
-    <header class="page-header">
-      <h1 class="page-title">词汇</h1>
-      <p class="page-subtitle">生词本与词卡复习</p>
-    </header>
+    <PageHeader title="词汇" subtitle="生词本与词卡复习" />
 
     <!-- Tabs -->
     <BaseTabs v-model="activeTab" :tabs="tabs" />
@@ -178,7 +175,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { vocabularyApi } from '../api'
-import { BaseTabs, BaseInput, BaseButton, BaseTable, BaseProgress, BaseModal, FlashCard, Skeleton, EmptyState, PronunciationBtn, WordEtymology, ForgettingCurve } from '../components'
+import { PageHeader, BaseTabs, BaseInput, BaseButton, BaseTable, BaseProgress, BaseModal, FlashCard, Skeleton, EmptyState, PronunciationBtn, WordEtymology, ForgettingCurve } from '../components'
 import { useToast } from '../composables/useToast'
 import type { Vocabulary } from '../types'
 
