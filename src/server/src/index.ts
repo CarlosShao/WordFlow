@@ -8,6 +8,7 @@ import { errorHandler } from './common/errors.js'
 import { logger } from './common/logger.js'
 
 // Routes
+import { authRoutes, buildAuthenticate } from './modules/auth/index.js'
 import { contentRoutes } from './modules/content/index.js'
 import { vocabularyRoutes } from './modules/vocabulary/index.js'
 import { practiceRoutes } from './modules/practice/index.js'
@@ -45,7 +46,11 @@ export async function buildApp() {
   // Health check
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }))
 
+  // Auth decorator (authenticate middleware)
+  app.decorate('authenticate', buildAuthenticate())
+
   // Routes
+  await app.register(authRoutes)
   await app.register(contentRoutes)
   await app.register(vocabularyRoutes)
   await app.register(practiceRoutes)

@@ -1,5 +1,11 @@
 // 测试环境设置
 process.env.NODE_ENV = 'test'
 process.env.DATABASE_URL = 'postgresql://wordflow:wordflow@localhost:5432/wordflow_test'
-process.env.JWT_SECRET = 'test-secret'
+process.env.JWT_SECRET = 'test-secret-key-that-is-32-chars!!'
+process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-32-chars!!!!!'
 process.env.LOG_LEVEL = 'silent'
+process.env.MINIO_ACCESS_KEY = 'test-minio-key'
+process.env.MINIO_SECRET_KEY = 'test-minio-secret'
+process.env.GITHUB_CLIENT_ID = 'test-github-client-id'
+process.env.GITHUB_CLIENT_SECRET = 'test-github-client-secret'
+process.env.AI_API_KEY = 'test-ai-api-key'
