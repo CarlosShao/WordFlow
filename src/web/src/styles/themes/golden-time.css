@@ -1,0 +1,92 @@
+/* ═══════════════════════════════════════════════════════════════
+   Theme: Golden Time Style
+   Visual: Warm paper-like background, organic shapes, serif headings,
+           elegant, refined, luxury feel. Based on dl_builtin_golden_time.
+   ═══════════════════════════════════════════════════════════════ */
+
+[data-theme="golden-time"] {
+  /* ── Colors — Warm, light, elegant ─────────────────────────── */
+  --color-brand: #3b352b;
+  --color-text: #3b352b;
+  --color-text-muted: #978365;
+  --color-surface: #fbfaf9;
+  --color-surface-muted: #f5f3ef;
+  --color-surface-subtle: #edeae4;
+  --color-border: #e1dccf;
+  --color-border-strong: #cbc0aa;
+  --color-primary: #3b352b;
+  --color-primary-foreground: #fbfaf9;
+  --color-success-600: #5a8a4a;
+  --color-danger-600: #c45a4c;
+  --color-sidebar: #f5f3ef;
+  --color-sidebar-accent: #edeae4;
+  --color-sidebar-border: #e1dccf;
+  --color-sidebar-primary: #3b352b;
+  --color-background: #fbfaf9;
+  --color-foreground: #3b352b;
+  --color-muted: #f5f3ef;
+  --color-muted-foreground: #978365;
+  --color-popover: #fbfaf9;
+
+  /* ── Typography — Serif for headings ──────────────────────── */
+  --font-sans: 'Fraunces', 'Georgia', ui-serif, serif;
+  --font-serif: 'Fraunces', 'Georgia', ui-serif, serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* ── Shadows — Soft, minimal shadows ──────────────────────── */
+  --shadow-2xs: 0 1px 1px rgba(60, 54, 45, 0.03);
+  --shadow-xs: 0 1px 2px rgba(60, 54, 45, 0.04);
+  --shadow-sm: 0 2px 4px rgba(60, 54, 45, 0.05);
+  --shadow: 0 4px 8px rgba(60, 54, 45, 0.06);
+  --shadow-md: 0 6px 12px rgba(60, 54, 45, 0.08);
+  --shadow-lg: 0 10px 20px rgba(60, 54, 45, 0.1);
+  --shadow-xl: 0 16px 32px rgba(60, 54, 45, 0.12);
+  --shadow-2xl: 0 24px 48px rgba(60, 54, 45, 0.14);
+
+  /* ── Radius — Large, organic ──────────────────────────────── */
+  --radius-sm: 16px;
+  --radius-md: 24px;
+  --radius-lg: 32px;
+  --radius: 24px;
+
+  /* ── Component: Button — elegant, organic shape ───────────── */
+  --btn-radius: 24px;
+  --btn-shadow: 0 2px 8px rgba(60, 54, 45, 0.08);
+  --btn-text-transform: none;
+  --btn-letter-spacing: 0.02em;
+  --btn-font-weight: 500;
+  --btn-border-width: 0px;
+
+  /* ── Component: Card — soft, rounded, minimal shadow ──────── */
+  --card-radius: 24px;
+  --card-shadow: 0 4px 16px rgba(60, 54, 45, 0.06);
+  --card-border-width: 0px;
+  --card-padding: var(--space-5);
+
+  /* ── Component: Sidebar — refined, warm ───────────────────── */
+  --sidebar-width: 230px;
+  --sidebar-item-radius: 20px;
+  --sidebar-brand-weight: 600;
+  --sidebar-brand-size: 1.0625rem;
+  --sidebar-active-foreground: #fbfaf9;
+
+  /* ── Component: Input — minimal, elegant ──────────────────── */
+  --input-radius: 16px;
+  --input-border-width: 1px;
+  --input-focus-shadow: 0 0 0 3px rgba(60, 54, 45, 0.08);
+}
+
+/* Golden Time — serif headings */
+[data-theme="golden-time"] h1,
+[data-theme="golden-time"] h2,
+[data-theme="golden-time"] .page-title,
+[data-theme="golden-time"] .section-title,
+[data-theme="golden-time"] .brand-text {
+  font-family: var(--font-serif);
+}
+
+/* Golden Time — soft accent on active sidebar */
+[data-theme="golden-time"] .sidebar-item.active {
+  background: var(--color-sidebar-primary);
+  color: var(--sidebar-active-foreground);
+}

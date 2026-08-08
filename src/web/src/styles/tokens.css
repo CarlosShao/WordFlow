@@ -1,0 +1,193 @@
+/* ═══════════════════════════════════════════════════════════════
+   Design Tokens — 极简 (Minimalist) Design System
+   Based on dl_builtin_minimalist library
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Colors: Brand ──────────────────────────────────────────── */
+  --color-brand-50: #fafafa;
+  --color-brand-100: #f4f4f5;
+  --color-brand-200: #e4e4e7;
+  --color-brand-300: #d4d4d8;
+  --color-brand-400: #a1a1aa;
+  --color-brand-600: #52525b;
+  --color-brand-700: #3f3f46;
+  --color-brand-800: #27272a;
+  --color-brand-900: #18181b;
+  --color-brand: #18181b;
+
+  /* ── Colors: Text ───────────────────────────────────────────── */
+  --color-text-50: #fafafa;
+  --color-text-100: #ededed;
+  --color-text-200: #d4d4d4;
+  --color-text-300: #a1a1a1;
+  --color-text-400: #858585;
+  --color-text-600: #525252;
+  --color-text-700: #404040;
+  --color-text-800: #171717;
+  --color-text-900: #0a0a0a;
+  --color-text: #18181b;
+  --color-text-muted: #71717a;
+
+  /* ── Colors: Background ─────────────────────────────────────── */
+  --color-background-50: #ffffff;
+  --color-background-100: #fafafa;
+  --color-background-200: #f5f5f5;
+  --color-background-300: #e5e5e5;
+  --color-background-400: #d4d4d4;
+  --color-background-500: #a3a3a3;
+  --color-background-600: #404040;
+  --color-background-700: #262626;
+  --color-background-800: #171717;
+  --color-background-900: #0a0a0a;
+
+  /* ── Colors: Surface ────────────────────────────────────────── */
+  --color-surface: #ffffff;
+  --color-surface-muted: #fafafa;
+  --color-surface-subtle: #f4f4f5;
+
+  /* ── Colors: Border ─────────────────────────────────────────── */
+  --color-border: #e4e4e7;
+  --color-border-strong: #d4d4d8;
+  --color-brand-subtle: #f4f4f5;
+  --color-brand-border: #d4d4d8;
+
+  /* ── Colors: Primary ────────────────────────────────────────── */
+  --color-primary: #18181b;
+  --color-primary-foreground: #fafafa;
+
+  /* ── Colors: Success ────────────────────────────────────────── */
+  --color-success-50: #f0fdf4;
+  --color-success-200: #bbf7d0;
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
+  --color-success-text: #4ade80;
+
+  /* ── Colors: Danger ─────────────────────────────────────────── */
+  --color-danger-50: #fef2f2;
+  --color-danger-200: #fecaca;
+  --color-danger-600: #dc2626;
+  --color-danger-700: #b91c1c;
+
+  /* ── Colors: Icon ───────────────────────────────────────────── */
+  --color-icon-50: #fafafa;
+  --color-icon-100: #e5e5e5;
+  --color-icon-200: #d4d4d4;
+  --color-icon-300: #b0b0b0;
+  --color-icon-400: #8f8f8f;
+  --color-icon-500: #6e6e6e;
+  --color-icon-600: #525252;
+  --color-icon-700: #404040;
+  --color-icon-800: #262626;
+  --color-icon-900: #0a0a0a;
+
+  /* ── Colors: Chart ──────────────────────────────────────────── */
+  --color-chart-1: #3f3f46;
+  --color-chart-2: #71717a;
+  --color-chart-3: #d4d4d8;
+  --color-chart-4: #e4e4e7;
+  --color-chart-5: #fafafa;
+
+  /* ── Colors: Sidebar ────────────────────────────────────────── */
+  --color-sidebar: #fafafa;
+  --color-sidebar-accent: #f4f4f5;
+  --color-sidebar-border: #e4e4e7;
+  --color-sidebar-primary: #18181b;
+  --color-sidebar-ring: #a1a1aa;
+
+  /* ── Colors: Misc ───────────────────────────────────────────── */
+  --color-background: #18181b;
+  --color-foreground: #fafafa;
+  --color-muted: #f4f4f5;
+  --color-muted-foreground: #a1a1aa;
+  --color-popover: #27272a;
+  --color-brand-subtle: #27272a;
+  --color-brand-border: #3f3f46;
+  --color-destructive-subtle: #2a1416;
+  --color-destructive-foreground: #fafafa;
+
+  /* ── Typography: Font Families ──────────────────────────────── */
+  --font-sans: 'Geist', ui-sans-serif, sans-serif, system-ui;
+  --font-serif: 'DM Serif Display', ui-serif, serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+
+  /* ── Typography: Font Sizes ────────────────────────────────── */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.8125rem;
+  --font-size-base: 0.875rem;
+  --font-size-md: 0.9375rem;
+  --font-size-lg: 1rem;
+  --font-size-xl: 1.125rem;
+  --font-size-2xl: 1.25rem;
+  --font-size-3xl: 1.5rem;
+  --font-size-4xl: 1.75rem;
+
+  /* ── Typography: Line Heights ──────────────────────────────── */
+  --line-height-tight: 1.2;
+  --line-height-snug: 1.4;
+  --line-height-normal: 1.5;
+
+  /* ── Focus Ring ────────────────────────────────────────────── */
+  --focus-ring-color: var(--color-primary);
+  --focus-ring-offset: 2px;
+  --focus-ring-width: 2px;
+
+  /* ── Page Header (shared) ──────────────────────────────────── */
+  --page-title-size: var(--font-size-4xl);
+  --page-title-weight: 700;
+  --page-subtitle-size: var(--font-size-md);
+
+  /* ── Shadows ────────────────────────────────────────────────── */
+  --shadow-2xs: 0px 1px 0px 0px rgba(0, 0, 0, 0.04);
+  --shadow-xs: 0px 1px 1px 0px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0px 1px 2px 0px rgba(0, 0, 0, 0.05), 0px 1px 1px 0px rgba(0, 0, 0, 0.03);
+  --shadow: 0px 2px 4px 0px rgba(0, 0, 0, 0.06), 0px 1px 2px 0px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0px 4px 8px -2px rgba(0, 0, 0, 0.07), 0px 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0px 12px 20px -6px rgba(0, 0, 0, 0.08), 0px 4px 8px -2px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0px 24px 40px -10px rgba(0, 0, 0, 0.10), 0px 8px 16px -4px rgba(0, 0, 0, 0.06);
+  --shadow-2xl: 0px 32px 56px -14px rgba(0, 0, 0, 0.14);
+
+  /* ── Radius ─────────────────────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius: 12px;
+
+  /* ── Spacing ────────────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ── Component: Button ──────────────────────────────────────── */
+  --btn-radius: var(--radius-md);
+  --btn-shadow: var(--shadow-sm);
+  --btn-text-transform: none;
+  --btn-letter-spacing: normal;
+  --btn-font-weight: 600;
+  --btn-border-width: 1px;
+
+  /* ── Component: Card ────────────────────────────────────────── */
+  --card-radius: var(--radius-md);
+  --card-shadow: var(--shadow-sm);
+  --card-border-width: 1px;
+  --card-padding: var(--space-3);
+
+  /* ── Component: Sidebar ─────────────────────────────────────── */
+  --sidebar-width: 224px;
+  --sidebar-item-radius: var(--radius-md);
+  --sidebar-brand-weight: 700;
+  --sidebar-brand-size: 0.9375rem;
+  --sidebar-active-foreground: var(--color-primary-foreground);
+
+  /* ── Component: Input ───────────────────────────────────────── */
+  --input-radius: var(--radius-md);
+  --input-border-width: 1px;
+  --input-focus-shadow: 0 0 0 1px var(--color-primary);
+}

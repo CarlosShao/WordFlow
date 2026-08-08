@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.env.local
+.env.*.local
+
+# Tool-specific (CatPaw etc.)
+.codegraph/
+.omo/
+
+# Docker volumes (project-local)
+.docker/volumes/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# Build
+*.tsbuildinfo
+nextbuild/

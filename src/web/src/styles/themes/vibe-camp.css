@@ -1,0 +1,76 @@
+/* ═══════════════════════════════════════════════════════════════
+   Theme: Vibe Camp Style
+   Visual: Bright orange accent, very rounded shapes, playful,
+           warm, youthful energy.
+   ═══════════════════════════════════════════════════════════════ */
+
+[data-theme="vibe-camp"] {
+  /* ── Colors ─────────────────────────────────────────────── */
+  --color-brand: #FF6B35;
+  --color-text: #2D2A26;
+  --color-text-muted: #8B7E74;
+  --color-surface: #FFFBF5;
+  --color-surface-muted: #FFF5E9;
+  --color-surface-subtle: #FFEDD5;
+  --color-border: #F0DCC8;
+  --color-border-strong: #E0C8AA;
+  --color-primary: #FF6B35;
+  --color-primary-foreground: #ffffff;
+  --color-success-600: #22C55E;
+  --color-danger-600: #EF4444;
+  --color-sidebar: #FFF5E9;
+  --color-sidebar-accent: #FFEDD5;
+  --color-sidebar-border: #F0DCC8;
+  --color-sidebar-primary: #FF6B35;
+  --color-background: #FF6B35;
+  --color-foreground: #ffffff;
+  --color-muted: #FFF5E9;
+  --color-muted-foreground: #8B7E74;
+  --color-popover: #FFFBF5;
+
+  /* ── Typography ─────────────────────────────────────────── */
+  --font-sans: 'Nunito', 'Poppins', -apple-system, sans-serif;
+  --font-mono: 'Fira Code', monospace;
+
+  /* ── Shadows — Warm, orange-tinted ──────────────────────── */
+  --shadow-2xs: 0 1px 2px rgba(255, 107, 53, 0.06);
+  --shadow-xs: 0 1px 3px rgba(255, 107, 53, 0.08);
+  --shadow-sm: 0 2px 8px rgba(255, 107, 53, 0.1);
+  --shadow: 0 4px 14px rgba(255, 107, 53, 0.12);
+  --shadow-md: 0 8px 24px rgba(255, 107, 53, 0.15);
+  --shadow-lg: 0 12px 36px rgba(255, 107, 53, 0.18);
+  --shadow-xl: 0 20px 48px rgba(255, 107, 53, 0.2);
+  --shadow-2xl: 0 32px 64px rgba(255, 107, 53, 0.22);
+
+  /* ── Radius — Very rounded ──────────────────────────────── */
+  --radius-sm: 14px;
+  --radius-md: 22px;
+  --radius-lg: 30px;
+  --radius: 22px;
+
+  /* ── Component: Button — very round, bold ───────────────── */
+  --btn-radius: 999px;
+  --btn-shadow: 0 4px 14px rgba(255, 107, 53, 0.2);
+  --btn-text-transform: none;
+  --btn-letter-spacing: normal;
+  --btn-font-weight: 700;
+  --btn-border-width: 0px;
+
+  /* ── Component: Card — very round, playful ──────────────── */
+  --card-radius: 24px;
+  --card-shadow: 0 4px 16px rgba(255, 107, 53, 0.1);
+  --card-border-width: 0px;
+  --card-padding: var(--space-5);
+
+  /* ── Component: Sidebar ─────────────────────────────────── */
+  --sidebar-width: 240px;
+  --sidebar-item-radius: 16px;
+  --sidebar-brand-weight: 800;
+  --sidebar-brand-size: 1.0625rem;
+  --sidebar-active-foreground: #ffffff;
+
+  /* ── Component: Input ───────────────────────────────────── */
+  --input-radius: 16px;
+  --input-border-width: 2px;
+  --input-focus-shadow: 0 0 0 4px rgba(255, 107, 53, 0.15);
+}

@@ -1,0 +1,90 @@
+/* ═══════════════════════════════════════════════════════════════
+   Theme: Barbie Style
+   Visual: Pink gradient accents, ultra-rounded, cute,
+           soft shadows, playful typography.
+   ═══════════════════════════════════════════════════════════════ */
+
+[data-theme="barbie"] {
+  /* ── Colors ─────────────────────────────────────────────── */
+  --color-brand: #E91E8C;
+  --color-text: #4A154B;
+  --color-text-muted: #9B6E9B;
+  --color-surface: #FFF8FC;
+  --color-surface-muted: #FFF0F5;
+  --color-surface-subtle: #FFE4EE;
+  --color-border: #FFD6E8;
+  --color-border-strong: #FFA0C4;
+  --color-primary: #E91E8C;
+  --color-primary-foreground: #ffffff;
+  --color-success-600: #FF69B4;
+  --color-danger-600: #FF1493;
+  --color-sidebar: #FFF0F5;
+  --color-sidebar-accent: #FFE4EE;
+  --color-sidebar-border: #FFD6E8;
+  --color-sidebar-primary: #E91E8C;
+  --color-background: #E91E8C;
+  --color-foreground: #ffffff;
+  --color-muted: #FFF0F5;
+  --color-muted-foreground: #9B6E9B;
+  --color-popover: #FFF8FC;
+
+  /* ── Typography ─────────────────────────────────────────── */
+  --font-sans: 'Quicksand', 'Poppins', -apple-system, sans-serif;
+  --font-mono: 'Fira Code', monospace;
+
+  /* ── Shadows — Pink-tinted ──────────────────────────────── */
+  --shadow-2xs: 0 1px 2px rgba(233, 30, 140, 0.04);
+  --shadow-xs: 0 1px 3px rgba(233, 30, 140, 0.06);
+  --shadow-sm: 0 2px 8px rgba(233, 30, 140, 0.08);
+  --shadow: 0 4px 14px rgba(233, 30, 140, 0.1);
+  --shadow-md: 0 8px 24px rgba(233, 30, 140, 0.12);
+  --shadow-lg: 0 12px 36px rgba(233, 30, 140, 0.15);
+  --shadow-xl: 0 20px 48px rgba(233, 30, 140, 0.18);
+  --shadow-2xl: 0 32px 64px rgba(233, 30, 140, 0.2);
+
+  /* ── Radius — Ultra rounded ─────────────────────────────── */
+  --radius-sm: 16px;
+  --radius-md: 24px;
+  --radius-lg: 32px;
+  --radius: 24px;
+
+  /* ── Component: Button — pill, gradient ─────────────────── */
+  --btn-radius: 999px;
+  --btn-shadow: 0 4px 16px rgba(233, 30, 140, 0.2);
+  --btn-text-transform: none;
+  --btn-letter-spacing: 0.01em;
+  --btn-font-weight: 700;
+  --btn-border-width: 0px;
+
+  /* ── Component: Card — ultra round, pink shadow ─────────── */
+  --card-radius: 28px;
+  --card-shadow: 0 4px 20px rgba(233, 30, 140, 0.08);
+  --card-border-width: 0px;
+  --card-padding: var(--space-5);
+
+  /* ── Component: Sidebar ─────────────────────────────────── */
+  --sidebar-width: 240px;
+  --sidebar-item-radius: 18px;
+  --sidebar-brand-weight: 700;
+  --sidebar-brand-size: 1rem;
+  --sidebar-active-foreground: #ffffff;
+
+  /* ── Component: Input ───────────────────────────────────── */
+  --input-radius: 18px;
+  --input-border-width: 2px;
+  --input-focus-shadow: 0 0 0 4px rgba(233, 30, 140, 0.12);
+}
+
+/* Barbie gradient on primary buttons */
+[data-theme="barbie"] .btn.primary {
+  background: linear-gradient(135deg, #FF69B4, #E91E8C, #C71585);
+}
+
+/* Barbie gradient on page titles */
+[data-theme="barbie"] .page-title,
+[data-theme="barbie"] .section-title {
+  background: linear-gradient(135deg, #FF69B4, #E91E8C);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
