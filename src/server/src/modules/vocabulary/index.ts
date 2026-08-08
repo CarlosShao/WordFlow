@@ -33,7 +33,7 @@ const reviewSchema = z.object({
 /**
  * SM-2 简化算法
  */
-function calculateSm2(
+export function calculateSm2(
   efactor: number,
   interval: number,
   repetitions: number,
