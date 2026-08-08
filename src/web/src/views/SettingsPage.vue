@@ -1,10 +1,5 @@
 <template>
   <div class="settings-page">
-    <header class="page-header">
-      <h1 class="page-title">设置</h1>
-      <p class="page-subtitle">个性化学习偏好</p>
-    </header>
-
     <!-- Settings Sections -->
     <div class="settings-sections">
       <!-- Daily Goals -->
@@ -617,5 +612,21 @@ function resetSettings() {
   color: #ffffff;
   background: var(--color-success-600, #16a34a);
   border-color: transparent;
+}
+
+@media (max-width: 480px) {
+  .auth-prompt {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .user-info {
+    flex-wrap: wrap;
+  }
+
+  .user-actions {
+    width: 100%;
+    margin-top: var(--space-2);
+  }
 }
 </style>

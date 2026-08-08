@@ -7,6 +7,7 @@
 export interface UserProfile {
   id: string
   username: string
+  email?: string
   avatar?: string
   level: CEFRLevel
   joinDate: string
