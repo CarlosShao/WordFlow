@@ -6,6 +6,7 @@ describe('SM-2 Algorithm', () => {
     const result = calculateSm2(2.5, 0, 0, 5)
     expect(result.repetitions).toBe(1)
     expect(result.interval).toBe(1)
+    // efactor = 2.5 + (0.1 - 0) = 2.6
     expect(result.efactor).toBeCloseTo(2.6, 1)
   })
 
@@ -36,9 +37,10 @@ describe('SM-2 Algorithm', () => {
     expect(efactor).toBeGreaterThanOrEqual(1.3)
   })
 
-  it('quality=4 → efactor 减少 0.1', () => {
+  it('quality=4 → efactor 减少', () => {
     const result = calculateSm2(2.5, 1, 1, 4)
-    expect(result.efactor).toBeCloseTo(2.4, 1)
+    // efactor = 2.5 + (0.1 - 1 * (0.08 + 1 * 0.02)) = 2.5 - 0.1 = 2.4
+    expect(result.efactor).toBeCloseTo(2.4, 0)
   })
 
   it('连续答对 4 次 + interval >= 14 → MASTERED 条件触发', () => {

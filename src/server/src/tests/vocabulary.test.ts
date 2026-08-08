@@ -1,26 +1,54 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import Fastify, { type FastifyInstance } from 'fastify'
-import { vocabularyRoutes } from '../modules/vocabulary/index.js'
-import { createMockPrisma } from './mocks/prisma.js'
+
+// Mock prisma before importing routes
+const mockPrisma = {
+  vocabulary: {
+    findMany: vi.fn(async () => []),
+    findUnique: vi.fn(async () => null),
+    findFirst: vi.fn(async () => null),
+    create: vi.fn(async ({ data }: any) => ({ id: crypto.randomUUID(), createdAt: new Date(), ...data })),
+    update: vi.fn(async () => ({})),
+    delete: vi.fn(async () => ({})),
+    count: vi.fn(async () => 0),
+    upsert: vi.fn(async () => ({})),
+    aggregate: vi.fn(async () => ({ _sum: { correctCount: 0 } })),
+  },
+}
 
 vi.mock('../common/prisma.js', () => ({
-  getPrisma: () => createMockPrisma(),
+  getPrisma: () => mockPrisma,
   disconnectPrisma: vi.fn(),
 }))
 
+import { vocabularyRoutes } from '../modules/vocabulary/index.js'
+import { errorHandler } from '../common/errors.js'
+
 describe('Vocabulary Routes', () => {
   let app: FastifyInstance
-  let prisma: ReturnType<typeof createMockPrisma>
 
   beforeEach(async () => {
     app = Fastify()
-    prisma = createMockPrisma()
 
-    // 注入 authenticate 中间件
+    // Reset all mocks
+    vi.clearAllMocks()
+    mockPrisma.vocabulary.findUnique = vi.fn(async () => null)
+    mockPrisma.vocabulary.findFirst = vi.fn(async () => null)
+    mockPrisma.vocabulary.create = vi.fn(async ({ data }: any) => ({
+      id: crypto.randomUUID(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...data,
+    }))
+    mockPrisma.vocabulary.findMany = vi.fn(async () => [])
+    mockPrisma.vocabulary.count = vi.fn(async () => 0)
+
+    // Auth middleware: inject fake user
     app.decorate('authenticate', async (request: any) => {
       request.user = { id: 'test-user-id', email: 'test@test.com' }
     })
 
+    app.setErrorHandler(errorHandler)
     await app.register(vocabularyRoutes)
     await app.ready()
   })
@@ -32,7 +60,6 @@ describe('Vocabulary Routes', () => {
       payload: {
         word: 'serendipity',
         translation: '意外发现美好事物的能力',
-        definition: 'The occurrence of events by chance in a happy way',
       },
     })
 
@@ -44,35 +71,26 @@ describe('Vocabulary Routes', () => {
   })
 
   it('POST /api/v1/vocabulary → 409 重复词汇', async () => {
-    // 第一次创建
-    await app.inject({
+    mockPrisma.vocabulary.findUnique = vi.fn(async () => ({ id: 'existing', word: 'test' }))
+
+    const response = await app.inject({
       method: 'POST',
       url: '/api/v1/vocabulary',
       payload: { word: 'test', translation: '测试' },
     })
 
-    // 第二次创建相同词汇
-    const response = await app.inject({
-      method: 'POST',
-      url: '/api/v1/vocabulary',
-      payload: { word: 'test', translation: '测试2' },
-    })
-
     expect(response.statusCode).toBe(409)
+    const body = response.json()
+    expect(body.error.type).toBe('DUPLICATE')
   })
 
   it('GET /api/v1/vocabulary → 返回当前用户词汇列表', async () => {
-    // 先创建两条
-    await app.inject({
-      method: 'POST',
-      url: '/api/v1/vocabulary',
-      payload: { word: 'apple', translation: '苹果' },
-    })
-    await app.inject({
-      method: 'POST',
-      url: '/api/v1/vocabulary',
-      payload: { word: 'banana', translation: '香蕉' },
-    })
+    const fakeData = [
+      { id: '1', word: 'apple', translation: '苹果' },
+      { id: '2', word: 'banana', translation: '香蕉' },
+    ]
+    mockPrisma.vocabulary.findMany = vi.fn(async () => fakeData)
+    mockPrisma.vocabulary.count = vi.fn(async () => 2)
 
     const response = await app.inject({
       method: 'GET',
@@ -96,13 +114,14 @@ describe('Vocabulary Routes', () => {
   })
 
   it('DELETE /api/v1/vocabulary/:id → 204 删除成功', async () => {
-    // 先创建
-    const createRes = await app.inject({
+    const created = await app.inject({
       method: 'POST',
       url: '/api/v1/vocabulary',
       payload: { word: 'delete-me', translation: '删除我' },
     })
-    const id = createRes.json().data.id
+    const id = created.json().data.id
+
+    mockPrisma.vocabulary.findFirst = vi.fn(async () => ({ id, userId: 'test-user-id' }))
 
     const response = await app.inject({
       method: 'DELETE',

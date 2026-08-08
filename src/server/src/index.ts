@@ -7,53 +7,66 @@ import { config } from './config/index.js'
 import { errorHandler } from './common/errors.js'
 import { logger } from './common/logger.js'
 
-const app = Fastify({
-  logger: logger[config.nodeEnv],
-  bodyLimit: 10 * 1024 * 1024, // 10MB
-})
+// Routes
+import { contentRoutes } from './modules/content/index.js'
+import { vocabularyRoutes } from './modules/vocabulary/index.js'
+import { practiceRoutes } from './modules/practice/index.js'
+import { mistakeRoutes } from './modules/mistakes/index.js'
+import { dashboardRoutes } from './modules/dashboard/index.js'
+import { aiRoutes } from './modules/ai/index.js'
 
-// Plugins
-await app.register(cors, {
-  origin: config.corsOrigin,
-  credentials: true,
-})
-
-await app.register(helmet, {
-  contentSecurityPolicy: config.nodeEnv === 'production',
-})
-
-await app.register(swagger, {
-  openapi: {
-    info: {
-      title: 'WordFlow API',
-      description: 'WordFlow 英语学习应用 API',
-      version: '1.0.0',
+export async function buildApp() {
+  const app = Fastify({
+    logger: {
+      level: config.LOG_LEVEL,
+      transport: config.NODE_ENV === 'development' ? { target: 'pino-pretty' } : undefined,
     },
-    servers: [{ url: `http://localhost:${config.port}` }],
-  },
-})
+  })
 
-await app.register(swaggerUi, {
-  routePrefix: '/docs',
-})
+  // Middleware
+  await app.register(cors, { origin: config.CORS_ORIGIN, credentials: true })
+  await app.register(helmet, { contentSecurityPolicy: false })
 
-// Health check
-app.get('/health', async () => ({
-  status: 'ok',
-  timestamp: new Date().toISOString(),
-  uptime: process.uptime(),
-}))
+  // Swagger docs
+  await app.register(swagger, {
+    openapi: {
+      info: { title: 'WordFlow API', version: '1.0.0', description: 'WordFlow英语学习应用API' },
+      servers: [{ url: 'http://localhost:3001' }],
+      components: {
+        securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
+      },
+    },
+  })
+  await app.register(swaggerUi, { routePrefix: '/docs' })
 
-// Error handler
-app.setErrorHandler(errorHandler)
+  // Error handler
+  app.setErrorHandler(errorHandler)
 
-// Start
-try {
-  await app.listen({ port: config.port, host: '0.0.0.0' })
-  app.log.info(`Server running on http://localhost:${config.port}`)
-} catch (err) {
-  app.log.error(err)
-  process.exit(1)
+  // Health check
+  app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }))
+
+  // Routes
+  await app.register(contentRoutes)
+  await app.register(vocabularyRoutes)
+  await app.register(practiceRoutes)
+  await app.register(mistakeRoutes)
+  await app.register(dashboardRoutes)
+  await app.register(aiRoutes)
+
+  return app
 }
 
-export default app
+async function start() {
+  try {
+    const app = await buildApp()
+    await app.listen({ port: config.PORT, host: '0.0.0.0' })
+    logger.info(`WordFlow server running on http://localhost:${config.PORT}`)
+  } catch (err) {
+    logger.error({ err }, 'Failed to start server')
+    process.exit(1)
+  }
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start()
+}
