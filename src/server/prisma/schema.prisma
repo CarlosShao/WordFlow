@@ -1,0 +1,222 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== 用户系统 ====================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  username  String
+  password  String?
+  githubId  String?  @unique
+  avatarUrl String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  vocabularies         Vocabulary[]
+  practiceSessions     PracticeSession[]
+  mistakes             Mistake[]
+  userContentInteractions UserContentInteraction[]
+  refreshTokens        RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// ==================== 内容系统 ====================
+
+model Content {
+  id          String   @id @default(uuid())
+  type        ContentType
+  title       String
+  source      String
+  sourceUrl   String?  @map("source_url")
+  author      String?
+  difficulty  Difficulty?
+  coverUrl    String?  @map("cover_url")
+  summary     String?
+  translation String?
+  segments    Json?
+  duration    Int?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  userInteractions UserContentInteraction[]
+
+  @@unique([source, sourceUrl])
+  @@index([type, createdAt])
+  @@index([source, createdAt])
+  @@map("contents")
+}
+
+model UserContentInteraction {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  contentId    String   @map("content_id")
+  isFavorite   Boolean  @default(false) @map("is_favorite")
+  isRead       Boolean  @default(false) @map("is_read")
+  mastery      MasteryStatus @default(NOT_REVIEWED) @map("mastery")
+  note         String?
+  lastReadAt   DateTime? @map("last_read_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentId])
+  @@index([userId, isFavorite])
+  @@index([userId, mastery])
+  @@map("user_content_interactions")
+}
+
+// ==================== 词汇系统 ====================
+
+model Vocabulary {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  word            String
+  phonetic        String?
+  definition      String?
+  translation     String?
+  examples        Json?
+  etymology       String?
+  // SM-2 Algorithm Fields
+  easeFactor      Float    @default(2.5) @map("ease_factor")
+  interval        Int      @default(0)
+  repetitions     Int      @default(0)
+  nextReviewDate  DateTime? @map("next_review_date")
+  lastReviewDate  DateTime? @map("last_review_date")
+  masteredAt      DateTime? @map("mastered_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, word])
+  @@index([userId, nextReviewDate])
+  @@index([userId, createdAt])
+  @@map("vocabularies")
+}
+
+// ==================== 练习系统 ====================
+
+model PracticeSession {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  contentId   String?  @map("content_id")
+  totalQuestions Int   @map("total_questions")
+  correctCount   Int   @map("correct_count")
+  score       Float?
+  duration    Int?
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questions PracticeQuestion[]
+
+  @@index([userId, createdAt])
+  @@map("practice_sessions")
+}
+
+model PracticeQuestion {
+  id              String   @id @default(uuid())
+  sessionId       String   @map("session_id")
+  type            QuestionType
+  question        String
+  options         Json?
+  correctAnswer   String   @map("correct_answer")
+  userAnswer      String?  @map("user_answer")
+  isCorrect       Boolean? @map("is_correct")
+  explanation     String?
+  contentSegment  String?  @map("content_segment")
+  difficulty      Difficulty?
+  points          Int      @default(0)
+  timeSpent       Int?     @map("time_spent")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  session PracticeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, isCorrect])
+  @@map("practice_questions")
+}
+
+// ==================== 错题系统 ====================
+
+model Mistake {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  questionId      String?  @map("question_id")
+  questionType    QuestionType @map("question_type")
+  question        String
+  correctAnswer   String   @map("correct_answer")
+  userAnswer      String?  @map("user_answer")
+  explanation     String?
+  contentSegment  String?  @map("content_segment")
+  difficulty      Difficulty?
+  mastery         MasteryStatus @default(NOT_REVIEWED) @map("mastery")
+  reviewCount     Int      @default(0) @map("review_count")
+  lastReviewDate  DateTime? @map("last_review_date")
+  nextReviewDate  DateTime? @map("next_review_date")
+  masteredAt      DateTime? @map("mastered_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId, mastery])
+  @@index([userId, nextReviewDate])
+  @@map("mistakes")
+}
+
+// ==================== 枚举 ====================
+
+enum ContentType {
+  ARTICLE
+  VIDEO
+  PODCAST
+}
+
+enum Difficulty {
+  BEGINNER
+  ELEMENTARY
+  INTERMEDIATE
+  UPPER_INTERMEDIATE
+  ADVANCED
+  PROFICIENT
+}
+
+enum MasteryStatus {
+  NOT_REVIEWED
+  REVIEWING
+  MASTERED
+}
+
+enum QuestionType {
+  CLOZE
+  READING_COMPREHENSION
+  GRAMMAR
+  VOCABULARY
+  LISTENING
+}

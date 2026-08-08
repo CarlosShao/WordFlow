@@ -39,9 +39,19 @@ target: chinese english learners
 - HTTP: Axios
 - UI: Custom components + CSS variables (theming)
 
-### Desktop
-- Shell: Tauri 1.x (Rust)
-- Wrap: Web frontend
+### Desktop (Tauri - Full-Featured)
+```
+provide:
+  - System tray (minimize to tray, not exit)
+  - Global shortcuts (start/pause study session)
+  - Local storage (offline cache)
+  - Native notifications (study reminders, streak alerts)
+  - Memory history mode (for Tauri compatibility)
+  - Window management (always-on-top, transparency)
+consume:
+  - Web frontend (wrapped)
+  - Backend API (when online)
+```
 
 ---
 
@@ -71,7 +81,7 @@ WordFlow/
 │   │   │   ├── common/       # Shared utilities
 │   │   │   └── main.ts       # Entry point
 │   │   └── package.json
-│   └── desktop/      # Tauri shell
+│   └── desktop/      # Tauri desktop (full-featured)
 ├── shared/           # Shared types/utils
 ├── docs/             # Documentation
 ├── docker-compose.yml
