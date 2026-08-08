@@ -68,7 +68,9 @@ withDefaults(defineProps<Props>(), {
 }
 
 .setting-control--full {
+  display: block;
   width: 100%;
   flex-shrink: 1;
 }
+
 </style>
