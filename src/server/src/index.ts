@@ -3,6 +3,7 @@ import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
+import multipart from '@fastify/multipart'
 import { config } from './config/index.js'
 import { errorHandler } from './common/errors.js'
 import { logger } from './common/logger.js'
@@ -17,6 +18,7 @@ import { mistakeRoutes } from './modules/mistakes/index.js'
 import { dashboardRoutes } from './modules/dashboard/index.js'
 import { aiRoutes } from './modules/ai/index.js'
 import { aiProcessingModule } from './modules/ai-processing/index.js'
+import { uploadRoutes } from './modules/upload/index.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -42,6 +44,14 @@ export async function buildApp() {
   })
   await app.register(swaggerUi, { routePrefix: '/docs' })
 
+  // Multipart support for file uploads
+  await app.register(multipart, {
+    limits: {
+      fileSize: 100 * 1024 * 1024, // 100MB max (matches media type limit)
+      files: 1, // Single file per request
+    },
+  })
+
   // Error handler
   app.setErrorHandler(errorHandler)
 
@@ -61,6 +71,7 @@ export async function buildApp() {
   await app.register(dashboardRoutes)
   await app.register(aiRoutes)
   await app.register(aiProcessingModule)
+  await app.register(uploadRoutes)
 
   return app
 }
