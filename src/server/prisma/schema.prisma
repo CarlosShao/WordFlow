@@ -220,3 +220,32 @@ enum QuestionType {
   VOCABULARY
   LISTENING
 }
+
+// ==================== 爬虫系统 ====================
+
+model CrawlerSource {
+  id            String   @id @default(uuid())
+  name          String
+  url           String
+  type          CrawlerSourceType
+  contentType   ContentType
+  difficulty    Difficulty
+  enabled       Boolean  @default(true)
+  crawlInterval Int      @default(1440) @map("crawl_interval") // 分钟，默认每天
+  lastCrawledAt DateTime? @map("last_crawled_at")
+  lastStatus    String?  @map("last_status") // success / error
+  lastError     String?  @map("last_error")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([enabled])
+  @@map("crawler_sources")
+}
+
+enum CrawlerSourceType {
+  RSS
+  YOUTUBE
+  TWITTER
+  WEB
+  PUPPETEER
+}

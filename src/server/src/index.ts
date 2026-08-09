@@ -10,6 +10,7 @@ import { logger } from './common/logger.js'
 // Routes
 import { authRoutes, buildAuthenticate } from './modules/auth/index.js'
 import { contentRoutes } from './modules/content/index.js'
+import { crawlerModule } from './modules/crawler/index.js'
 import { vocabularyRoutes } from './modules/vocabulary/index.js'
 import { practiceRoutes } from './modules/practice/index.js'
 import { mistakeRoutes } from './modules/mistakes/index.js'
@@ -52,6 +53,7 @@ export async function buildApp() {
   // Routes
   await app.register(authRoutes)
   await app.register(contentRoutes)
+  await app.register(crawlerModule)
   await app.register(vocabularyRoutes)
   await app.register(practiceRoutes)
   await app.register(mistakeRoutes)

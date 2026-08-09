@@ -32,6 +32,9 @@ const envSchema = z.object({
   AI_MODEL: z.string().default('deepseek-chat'),
 
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+
+  YOUTUBE_API_KEY: z.string().optional(),
+  TWITTER_BEARER_TOKEN: z.string().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)
@@ -81,4 +84,7 @@ export const config = {
   },
 
   corsOrigin: parsed.data.CORS_ORIGIN,
+
+  youtubeApiKey: parsed.data.YOUTUBE_API_KEY,
+  twitterBearerToken: parsed.data.TWITTER_BEARER_TOKEN,
 }
