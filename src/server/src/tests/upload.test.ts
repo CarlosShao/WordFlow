@@ -154,7 +154,7 @@ describe('Upload Routes', () => {
       expect(body.data.key).toContain(testUserId)
       expect(body.data.size).toBe(fileBuffer.length)
       expect(body.data.mimetype).toBe('image/jpeg')
-      expect(body.data.url).toContain('http://')
+      expect(body.data.url).toMatch(/^https?:\/\//)
     })
 
     it('201 upload cover with contentId', async () => {

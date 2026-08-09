@@ -37,6 +37,7 @@ const mockPrisma = {
     })),
     findUnique: vi.fn(async () => null),
     update: vi.fn(async () => ({})),
+    delete: vi.fn(async () => ({})),
     deleteMany: vi.fn(async () => ({ count: 1 })),
   },
 }
@@ -92,6 +93,7 @@ describe('Auth Routes', () => {
     }))
     mockPrisma.refreshToken.findUnique = vi.fn(async () => null)
     mockPrisma.refreshToken.update = vi.fn(async () => ({}))
+    mockPrisma.refreshToken.delete = vi.fn(async () => ({}))
     mockPrisma.refreshToken.deleteMany = vi.fn(async () => ({ count: 1 }))
     mockRedis.get = vi.fn(async () => null)
     mockRedis.set = vi.fn(async () => 'OK')

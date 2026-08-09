@@ -110,10 +110,8 @@ export async function refreshTokens(token: string): Promise<TokenPair> {
     throw new AppError(ErrorType.AUTH, 'refresh token 已过期', 401)
   }
 
-  await prisma.refreshToken.update({
-    where: { id: stored.id },
-    data: { expiresAt: new Date() },
-  })
+  // Token rotation: delete old token from both PostgreSQL and Redis
+  await prisma.refreshToken.delete({ where: { id: stored.id } })
   await redis.del(`whitelist:refresh:${token}`)
 
   const accessToken = signAccessToken(stored.user.id, stored.user.email)
