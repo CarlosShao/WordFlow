@@ -4,7 +4,7 @@
 
     <!-- Stats Cards -->
     <section class="stats-grid">
-      <template v-if="loading">
+      <template v-if="dashboard.loading">
         <Skeleton variant="card" />
         <Skeleton variant="card" />
         <Skeleton variant="card" />
@@ -19,7 +19,7 @@
             </svg>
           </div>
           <div class="stat-content">
-            <span class="stat-value">{{ stats.todayStudyMinutes }}</span>
+            <span class="stat-value">{{ dashboard.stats.todayStudyMinutes }}</span>
             <span class="stat-label">今日学习（分钟）</span>
           </div>
         </div>
@@ -32,7 +32,7 @@
             </svg>
           </div>
           <div class="stat-content">
-            <span class="stat-value">{{ stats.todayWordsLearned }}</span>
+            <span class="stat-value">{{ dashboard.stats.todayWordsLearned }}</span>
             <span class="stat-label">今日新词</span>
           </div>
         </div>
@@ -44,7 +44,7 @@
             </svg>
           </div>
           <div class="stat-content">
-            <span class="stat-value">{{ stats.streak }}天</span>
+            <span class="stat-value">{{ dashboard.stats.streak }}天</span>
             <span class="stat-label">连续学习</span>
           </div>
         </div>
@@ -57,7 +57,7 @@
             </svg>
           </div>
           <div class="stat-content">
-            <span class="stat-value">{{ stats.weeklyGoalProgress }}%</span>
+            <span class="stat-value">{{ dashboard.stats.weeklyGoalProgress }}%</span>
             <span class="stat-label">周目标进度</span>
           </div>
         </div>
@@ -67,7 +67,7 @@
     <!-- Daily Goal -->
     <section class="daily-goal-section">
       <div class="daily-goal-card">
-        <DailyGoal :current="stats.todayStudyMinutes" :target="30" />
+        <DailyGoal :current="dashboard.stats.todayStudyMinutes" :target="30" />
       </div>
     </section>
 
@@ -75,7 +75,7 @@
     <section class="charts-section">
       <div class="chart-card">
         <h3 class="chart-title">学习热力图</h3>
-        <StudyHeatmap :data="heatmapData.slice(-182)" />
+        <StudyHeatmap :data="dashboard.heatmapData.slice(-182)" />
       </div>
 
       <div class="chart-card">
@@ -83,7 +83,7 @@
         <div class="chart-placeholder">
           <div class="bar-chart">
             <div
-              v-for="point in wordGrowthData"
+              v-for="point in dashboard.wordGrowthData"
               :key="point.label"
               class="bar-item"
             >
@@ -100,7 +100,7 @@
       <h2 class="section-title">今日推荐</h2>
       <div class="recommendations-grid">
         <div
-          v-for="item in dailyContent"
+          v-for="item in dashboard.todayRecommendations"
           :key="item.id"
           class="recommendation-card"
           @click="$router.push(`/content/${item.id}`)"
@@ -121,7 +121,7 @@
           </div>
         </div>
       </div>
-      <div v-if="dailyContent.length === 0 && !loading" class="rec-empty">
+      <div v-if="dashboard.todayRecommendations.length === 0 && !dashboard.loading" class="rec-empty">
         <p>加载推荐内容中...</p>
       </div>
     </section>
@@ -139,43 +139,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { dashboardApi, contentApi } from '../api'
+import { onMounted } from 'vue'
 import { PageHeader, StudyHeatmap, Skeleton, DailyGoal, WeeklyReport, BaseTag } from '../components'
-import type { DashboardStats, HeatmapData, ChartDataPoint, ContentItem } from '../types'
+import { useDashboardStore } from '../stores/dashboard'
 
-const loading = ref(true)
+const dashboard = useDashboardStore()
 
-const stats = ref<DashboardStats>({
-  todayStudyMinutes: 0,
-  todayWordsLearned: 0,
-  streak: 0,
-  weeklyGoalProgress: 0,
-  totalWords: 0,
-  totalArticles: 0,
-  totalListeningHours: 0
+onMounted(() => {
+  dashboard.fetchAll()
 })
-
-const heatmapData = ref<HeatmapData[]>([])
-const wordGrowthData = ref<ChartDataPoint[]>([])
-const dailyContent = ref<ContentItem[]>([])
-
-onMounted(async () => {
-  const [statsRes, heatmapRes, growthRes, contentRes] = await Promise.all([
-    dashboardApi.getStats(),
-    dashboardApi.getHeatmapData(),
-    dashboardApi.getWordGrowthData(),
-    contentApi.getRecommendations(3)
-  ])
-  
-  if (statsRes.success) stats.value = statsRes.data
-  if (heatmapRes.success) heatmapData.value = heatmapRes.data
-  if (growthRes.success) wordGrowthData.value = growthRes.data
-  if (contentRes.success) dailyContent.value = contentRes.data
-  loading.value = false
-})
-
-
 </script>
 
 <style scoped>

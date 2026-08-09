@@ -31,6 +31,7 @@ const error = ref('')
 
 onMounted(() => {
   const token = route.query.token as string | undefined
+  const refreshToken = route.query.refreshToken as string | undefined
   const errorParam = route.query.error as string | undefined
 
   if (errorParam) {
@@ -45,7 +46,7 @@ onMounted(() => {
     return
   }
 
-  auth.handleOAuthCallback(token)
+  auth.handleOAuthCallback(token, refreshToken)
   router.push('/dashboard')
 })
 

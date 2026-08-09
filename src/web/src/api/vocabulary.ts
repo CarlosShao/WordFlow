@@ -1,7 +1,11 @@
-import type { ApiResponse, Vocabulary, CEFRLevel } from '../types'
-import { mockVocabulary } from '../mocks'
+import client from './client'
+import type { Vocabulary, CEFRLevel, PaginatedResponse } from '../types'
 
-const delay = (ms: number = 300) => new Promise(resolve => setTimeout(resolve, ms))
+export interface VocabularyReviewResult {
+  id: string
+  masteryLevel: number
+  nextReviewAt: string
+}
 
 export const vocabularyApi = {
   async getList(params?: {
@@ -11,87 +15,37 @@ export const vocabularyApi = {
     tags?: string[]
     sortBy?: 'word' | 'addedAt' | 'masteryLevel' | 'nextReviewAt'
     sortOrder?: 'asc' | 'desc'
-  }): Promise<ApiResponse<{ items: Vocabulary[]; total: number; page: number; pageSize: number }>> {
-    await delay()
-    const { page = 1, pageSize = 20, difficulty, tags, sortBy = 'addedAt', sortOrder = 'desc' } = params || {}
-    
-    let filtered = [...mockVocabulary]
-    
-    if (difficulty) {
-      filtered = filtered.filter(v => v.tags.includes(difficulty))
-    }
-    if (tags && tags.length > 0) {
-      filtered = filtered.filter(v => tags.some(t => v.tags.includes(t)))
-    }
-    
-    // Sort
-    filtered.sort((a, b) => {
-      let compare = 0
-      switch (sortBy) {
-        case 'word':
-          compare = a.word.localeCompare(b.word)
-          break
-        case 'addedAt':
-          compare = new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime()
-          break
-        case 'masteryLevel':
-          compare = a.masteryLevel - b.masteryLevel
-          break
-        case 'nextReviewAt':
-          compare = (a.nextReviewAt ? new Date(a.nextReviewAt).getTime() : 0) - (b.nextReviewAt ? new Date(b.nextReviewAt).getTime() : 0)
-          break
-      }
-      return sortOrder === 'asc' ? compare : -compare
-    })
-    
-    const start = (page - 1) * pageSize
-    const end = start + pageSize
-    
-    return {
-      success: true,
-      data: {
-        items: filtered.slice(start, end),
-        total: filtered.length,
-        page,
-        pageSize
-      }
-    }
+  }): Promise<PaginatedResponse<Vocabulary>> {
+    const data = await client.get('/api/v1/vocabulary', { params: params as Record<string, string | number | boolean> })
+    return data as unknown as PaginatedResponse<Vocabulary>
   },
 
-  async getById(id: string): Promise<ApiResponse<Vocabulary | null>> {
-    await delay()
-    const vocab = mockVocabulary.find(v => v.id === id)
-    return {
-      success: !!vocab,
-      data: vocab || null,
-      error: vocab ? undefined : 'Vocabulary not found'
-    }
+  async getById(id: string): Promise<Vocabulary> {
+    const data = await client.get(`/api/v1/vocabulary/${id}`)
+    return data as unknown as Vocabulary
   },
 
-  async search(keyword: string): Promise<ApiResponse<Vocabulary[]>> {
-    await delay()
-    const lowerKeyword = keyword.toLowerCase()
-    const results = mockVocabulary.filter(v => 
-      v.word.toLowerCase().includes(lowerKeyword) ||
-      v.definition.toLowerCase().includes(lowerKeyword) ||
-      v.chineseDefinition.includes(keyword)
-    )
-    return {
-      success: true,
-      data: results
-    }
+  async search(keyword: string): Promise<Vocabulary[]> {
+    const data = await client.get('/api/v1/vocabulary/search', { params: { q: keyword } })
+    return data as unknown as Vocabulary[]
   },
 
-  async getReviewList(): Promise<ApiResponse<Vocabulary[]>> {
-    await delay()
-    const now = new Date()
-    const reviewList = mockVocabulary.filter(v => {
-      if (!v.nextReviewAt) return true
-      return new Date(v.nextReviewAt) <= now
-    })
-    return {
-      success: true,
-      data: reviewList
-    }
-  }
+  async getReviewList(): Promise<Vocabulary[]> {
+    const data = await client.get('/api/v1/vocabulary/review')
+    return data as unknown as Vocabulary[]
+  },
+
+  async addWord(word: string, contentId?: string): Promise<Vocabulary> {
+    const data = await client.post('/api/v1/vocabulary', { word, contentId })
+    return data as unknown as Vocabulary
+  },
+
+  async review(id: string, quality: number): Promise<VocabularyReviewResult> {
+    const data = await client.post(`/api/v1/vocabulary/${id}/review`, { quality })
+    return data as unknown as VocabularyReviewResult
+  },
+
+  async delete(id: string): Promise<void> {
+    await client.delete(`/api/v1/vocabulary/${id}`)
+  },
 }

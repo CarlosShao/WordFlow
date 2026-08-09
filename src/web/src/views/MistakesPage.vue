@@ -5,39 +5,39 @@
     <!-- Stats -->
     <section class="stats-section">
       <div class="stat-card">
-        <span class="stat-value">{{ stats.total }}</span>
+        <span class="stat-value">{{ mistakesStore.stats.total }}</span>
         <span class="stat-label">总错题</span>
       </div>
       <div class="stat-card">
-        <span class="stat-value stat-danger">{{ stats.notReviewed }}</span>
+        <span class="stat-value stat-danger">{{ mistakesStore.stats.notReviewed }}</span>
         <span class="stat-label">待复习</span>
       </div>
       <div class="stat-card">
-        <span class="stat-value stat-warning">{{ stats.reviewing }}</span>
+        <span class="stat-value stat-warning">{{ mistakesStore.stats.reviewing }}</span>
         <span class="stat-label">复习中</span>
       </div>
       <div class="stat-card">
-        <span class="stat-value stat-success">{{ stats.mastered }}</span>
+        <span class="stat-value stat-success">{{ mistakesStore.stats.mastered }}</span>
         <span class="stat-label">已掌握</span>
       </div>
     </section>
 
     <!-- Filters -->
     <section class="filters-section">
-      <BaseTabs v-model="activeFilter" :tabs="filterTabs" />
+      <BaseTabs v-model="mistakesStore.activeFilter" :tabs="filterTabs" />
     </section>
 
     <!-- Mistakes List -->
     <section class="mistakes-list">
-      <Skeleton v-if="loading" variant="card" />
+      <Skeleton v-if="mistakesStore.loading" variant="card" />
 
       <EmptyState
-        v-else-if="filteredMistakes.length === 0"
+        v-else-if="mistakesStore.filteredMistakes.length === 0"
         title="没有找到错题"
         description="做得不错，继续保持！"
       />
 
-      <div v-for="mistake in filteredMistakes" :key="mistake.id" class="mistake-card">
+      <div v-for="mistake in mistakesStore.filteredMistakes" :key="mistake.id" class="mistake-card">
         <div class="mistake-header">
           <div class="mistake-meta">
             <span :class="['mistake-type', `type-${mistake.question.type}`]">
@@ -91,22 +91,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { mistakesApi } from '../api'
+import { onMounted } from 'vue'
 import { PageHeader, BaseTabs, BaseButton, Skeleton, EmptyState, PronunciationBtn } from '../components'
+import { useMistakesStore } from '../stores/mistakes'
 import { useToast } from '../composables/useToast'
-import type { MistakeRecord, PracticeType } from '../types'
+import type { PracticeType } from '../types'
 
-const mistakes = ref<MistakeRecord[]>([])
-const activeFilter = ref('all')
-const loading = ref(false)
+const mistakesStore = useMistakesStore()
 const toast = useToast()
-const stats = ref({
-  total: 0,
-  notReviewed: 0,
-  reviewing: 0,
-  mastered: 0
-})
 
 const filterTabs = [
   { value: 'all', label: '全部' },
@@ -115,21 +107,9 @@ const filterTabs = [
   { value: 'mastered', label: '已掌握' }
 ]
 
-const filteredMistakes = computed(() => {
-  if (activeFilter.value === 'all') return mistakes.value
-  return mistakes.value.filter(m => m.masteryStatus === activeFilter.value)
-})
-
-onMounted(async () => {
-  loading.value = true
-  const [listRes, statsRes] = await Promise.all([
-    mistakesApi.getList(),
-    mistakesApi.getStats()
-  ])
-  loading.value = false
-  
-  if (listRes.success) mistakes.value = listRes.data
-  if (statsRes.success) stats.value = statsRes.data
+onMounted(() => {
+  mistakesStore.fetchList()
+  mistakesStore.fetchStats()
 })
 
 function getTypeLabel(type: PracticeType): string {
@@ -161,16 +141,11 @@ function formatDate(dateStr: string): string {
 }
 
 async function updateStatus(id: string, status: 'not-reviewed' | 'reviewing' | 'mastered') {
-  const res = await mistakesApi.updateMastery(id, status)
-  if (res.success && res.data) {
-    const index = mistakes.value.findIndex(m => m.id === id)
-    if (index !== -1) {
-      mistakes.value[index] = res.data
-    }
-    // Update stats
-    const statsRes = await mistakesApi.getStats()
-    if (statsRes.success) stats.value = statsRes.data
+  const result = await mistakesStore.updateMastery(id, status)
+  if (result.success) {
     toast.success('已更新掌握状态')
+  } else {
+    toast.error(result.error || '更新失败')
   }
 }
 </script>

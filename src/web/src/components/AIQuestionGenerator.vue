@@ -180,13 +180,11 @@ async function generate() {
 
   const contentText = props.content.segments?.map(s => s.content).join('\n') || props.content.summary
 
-  const response = await aiService.generateQuestions(contentText, props.content.difficulty, 5)
-
-  if (response.success) {
-    questions.value = response.data
-    emit('questions-generated', response.data)
-  } else {
-    error.value = response.error || '生成失败，请重试'
+  try {
+    questions.value = await aiService.generateQuestions(contentText, props.content.difficulty, 5)
+    emit('questions-generated', questions.value)
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '生成失败，请重试'
   }
 
   isLoading.value = false

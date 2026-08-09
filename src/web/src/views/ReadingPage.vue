@@ -163,14 +163,17 @@ const sources: ArticleSource[] = ['BBC', 'CNN', 'NYT', 'Reddit', 'X', 'Medium', 
 
 async function fetchArticles() {
   loading.value = true
-  const res = await articlesApi.getList({
-    difficulty: selectedDifficulty.value || undefined,
-    source: selectedSource.value || undefined
-  })
-  if (res.success) {
-    articles.value = res.data.articles
+  try {
+    const result = await articlesApi.getList({
+      difficulty: selectedDifficulty.value || undefined,
+      source: selectedSource.value || undefined
+    })
+    articles.value = result.articles
+  } catch {
+    // handle error
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 const debouncedFetch = debounce(fetchArticles, 300)

@@ -172,13 +172,15 @@ const difficultyLevels = [
 
 async function fetchMaterials() {
   loading.value = true
-  const res = await listeningApi.getList({
-    difficulty: selectedDifficulty.value || undefined
-  })
-  if (res.success) {
-    materials.value = res.data
+  try {
+    materials.value = await listeningApi.getList({
+      difficulty: selectedDifficulty.value || undefined
+    })
+  } catch {
+    // handle error
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 watch(selectedDifficulty, fetchMaterials)

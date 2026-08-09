@@ -1,7 +1,7 @@
 <template>
   <div class="content-detail-page">
     <!-- Loading -->
-    <div v-if="loading" class="detail-loading">
+    <div v-if="contentStore.loading" class="detail-loading">
       <Skeleton variant="text" :lines="8" />
     </div>
 
@@ -246,7 +246,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { contentApi } from '../api'
 import {
   Skeleton,
   EmptyState,
@@ -260,6 +259,7 @@ import {
   DictationMode,
   AIQuestionGenerator
 } from '../components'
+import { useContentStore } from '../stores/content'
 import { useToast } from '../composables/useToast'
 import { useKeyboard } from '../composables/useKeyboard'
 import type { ContentItem, PracticeQuestion, ContentType } from '../types'
@@ -267,9 +267,9 @@ import type { ContentItem, PracticeQuestion, ContentType } from '../types'
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const contentStore = useContentStore()
 
 // ── State ──────────────────────────────────────────────────────────
-const loading = ref(true)
 const content = ref<ContentItem | null>(null)
 
 // Translation
@@ -298,25 +298,12 @@ useKeyboard({
 async function fetchContent() {
   const id = route.params.id as string
   if (!id) {
-    loading.value = false
+    contentStore.loading = false
     return
   }
 
-  loading.value = true
-  try {
-    const res = await contentApi.getById(id)
-    if (res.success && res.data) {
-      content.value = res.data
-    } else {
-      content.value = null
-      toast.error(res.error || '加载内容失败')
-    }
-  } catch {
-    toast.error('网络错误，请稍后重试')
-    content.value = null
-  } finally {
-    loading.value = false
-  }
+  await contentStore.fetchById(id)
+  content.value = contentStore.currentContent
 }
 
 onMounted(fetchContent)

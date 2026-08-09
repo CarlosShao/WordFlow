@@ -1,23 +1,18 @@
 // ═══════════════════════════════════════════════════════════════
 // AI Service — English Learner
 // High-level service that uses aiApi for data fetching.
-// Configure with configureAI() to switch from mock to real backend.
 // ═══════════════════════════════════════════════════════════════
 
-import { aiApi, configureAI as _configureAI } from '../api/ai'
+import { aiApi } from '../api/ai'
 import type {
   PracticeQuestion,
   CEFRLevel,
-  ApiResponse
 } from '../types'
 
-// Re-export configuration function
 export { configureAI } from '../api/ai'
 export type { AIConfig } from '../api/ai'
 
 // ── Prompt Templates ───────────────────────────────────────────
-// These can be sent to the backend as part of the request body
-// or used for client-side prompt engineering when needed.
 
 export const PROMPTS = {
   generateQuestions: (content: string, difficulty: CEFRLevel, count: number) => `
@@ -85,24 +80,19 @@ export const aiService = {
     content: string,
     difficulty: CEFRLevel = 'B2',
     count: number = 5
-  ): Promise<ApiResponse<PracticeQuestion[]>> {
-    const response = await aiApi.generateQuestions(content, difficulty, count)
-    return {
-      success: response.success,
-      data: response.data || [],
-      error: response.error
-    }
+  ): Promise<PracticeQuestion[]> {
+    return aiApi.generateQuestions(content, difficulty, count)
   },
 
   /**
    * Analyze a student's error and provide targeted feedback
    */
-  async analyzeError(
-    question: string,
-    userAnswer: string,
-    correctAnswer: string,
-    errorHistory: string = ''
-  ): Promise<ApiResponse<{
+  async analyzeError(params: {
+    question: string
+    userAnswer: string
+    correctAnswer: string
+    errorHistory?: string
+  }): Promise<{
     errorPattern: string
     explanation: string
     concept: string
@@ -112,57 +102,35 @@ export const aiService = {
       options?: string[]
       answer: string
     }>
-  }>> {
-    const response = await aiApi.analyzeError(question, userAnswer, correctAnswer, errorHistory)
-    return {
-      success: response.success,
-      data: response.data || {
-        errorPattern: '',
-        explanation: '',
-        concept: '',
-        studyRecommendation: '',
-        similarQuestions: []
-      },
-      error: response.error
-    }
+  }> {
+    return aiApi.analyzeError(params)
   },
 
   /**
    * Get contextual word definition (meaning depends on context)
    */
-  async getContextualDefinition(
-    word: string,
-    sentence: string,
+  async getContextualDefinition(params: {
+    word: string
+    sentence: string
     paragraph: string
-  ): Promise<ApiResponse<{
+  }): Promise<{
     definition: string
     chineseDefinition: string
     partOfSpeech: string
     phonetic: string
     contextNote: string
-  }>> {
-    const response = await aiApi.getContextualDefinition(word, sentence, paragraph)
-    return {
-      success: response.success,
-      data: response.data || {
-        definition: '',
-        chineseDefinition: '',
-        partOfSpeech: '',
-        phonetic: '',
-        contextNote: ''
-      },
-      error: response.error
-    }
+  }> {
+    return aiApi.getContextualDefinition(params)
   },
 
   /**
    * Generate a personalized weekly study plan
    */
-  async generateWeeklyPlan(
-    weakPoints: string,
-    recentActivity: string,
-    level: CEFRLevel = 'B2'
-  ): Promise<ApiResponse<{
+  async generateWeeklyPlan(params: {
+    weakPoints: string
+    recentActivity: string
+    level?: CEFRLevel
+  }): Promise<{
     days: Array<{
       day: string
       focus: string
@@ -170,13 +138,8 @@ export const aiService = {
       time: number
     }>
     priorityRecommendations: string[]
-  }>> {
-    const response = await aiApi.generateWeeklyPlan(weakPoints, recentActivity, level)
-    return {
-      success: response.success,
-      data: response.data || { days: [], priorityRecommendations: [] },
-      error: response.error
-    }
+  }> {
+    return aiApi.generateWeeklyPlan(params)
   },
 
   /**
@@ -185,28 +148,25 @@ export const aiService = {
   async generateVocabularyStory(
     words: string[],
     level: CEFRLevel = 'B2'
-  ): Promise<ApiResponse<{ story: string; translation: string }>> {
-    const response = await aiApi.generateVocabularyStory(words, level)
-    return {
-      success: response.success,
-      data: response.data || { story: '', translation: '' },
-      error: response.error
-    }
+  ): Promise<{ story: string; translation: string }> {
+    return aiApi.generateVocabularyStory(words, level)
   },
 
   /**
    * Assess the difficulty level of a text
    */
-  async assessDifficulty(text: string): Promise<ApiResponse<{
+  async assessDifficulty(text: string): Promise<{
     level: CEFRLevel
     confidence: number
     reasoning: string
-  }>> {
-    const response = await aiApi.assessDifficulty(text)
-    return {
-      success: response.success,
-      data: response.data || { level: 'B1', confidence: 0, reasoning: '' },
-      error: response.error
-    }
-  }
+  }> {
+    return aiApi.assessDifficulty(text)
+  },
+
+  /**
+   * Chat with AI
+   */
+  async chat(message: string, context?: string): Promise<{ reply: string }> {
+    return aiApi.chat(message, context)
+  },
 }

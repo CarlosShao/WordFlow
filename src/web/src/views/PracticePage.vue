@@ -47,59 +47,59 @@
 
     <!-- Start Button -->
     <section class="start-section">
-      <BaseButton size="lg" @click="startPractice" :disabled="!selectedType" :loading="loading">
+      <BaseButton size="lg" @click="startPractice" :disabled="!selectedType" :loading="practice.loading">
         开始练习
       </BaseButton>
     </section>
 
     <!-- Loading -->
-    <section v-if="loading" class="question-section">
+    <section v-if="practice.loading" class="question-section">
       <Skeleton variant="card" />
     </section>
 
     <!-- Empty State -->
     <EmptyState
-      v-else-if="!currentQuestion && !showResults && questions.length === 0"
+      v-else-if="!practice.currentQuestion && !practice.showResults && practice.totalQuestions === 0"
       title="暂无练习题"
       description="选择练习类型和难度后开始"
     />
 
     <!-- Question Section -->
-    <section v-else-if="currentQuestion" class="question-section">
+    <section v-else-if="practice.currentQuestion" class="question-section">
       <!-- Timer -->
       <div v-if="timedMode" class="timer-wrapper">
         <TimerCountdown :seconds="120" :running="true" @time-up="onTimeUp" @update:remaining="remainingTime = $event" />
       </div>
 
       <!-- Streak -->
-      <StreakAnimation :count="streakCount" :show="showStreak" />
+      <StreakAnimation :count="practice.streakCount" :show="showStreak" />
       <div class="question-header">
-        <span class="question-number">第 {{ currentIndex + 1 }} 题 / 共 {{ questions.length }} 题</span>
-        <span :class="['question-difficulty', `difficulty-${currentQuestion.difficulty}`]">
-          {{ currentQuestion.difficulty }}
+        <span class="question-number">第 {{ practice.currentIndex + 1 }} 题 / 共 {{ practice.totalQuestions }} 题</span>
+        <span :class="['question-difficulty', `difficulty-${practice.currentQuestion!.difficulty}`]">
+          {{ practice.currentQuestion!.difficulty }}
         </span>
       </div>
 
       <div class="question-card">
         <!-- Passage for reading comprehension -->
-        <div v-if="currentQuestion.passage" class="question-passage">
-          <p>{{ currentQuestion.passage }}</p>
+        <div v-if="practice.currentQuestion!.passage" class="question-passage">
+          <p>{{ practice.currentQuestion!.passage }}</p>
         </div>
 
-        <h3 class="question-text">{{ currentQuestion.question }}</h3>
+        <h3 class="question-text">{{ practice.currentQuestion!.question }}</h3>
 
         <!-- Options -->
-        <div v-if="currentQuestion.options" class="question-options">
+        <div v-if="practice.currentQuestion!.options" class="question-options">
           <button
-            v-for="(option, index) in currentQuestion.options"
+            v-for="(option, index) in practice.currentQuestion!.options"
             :key="index"
             :class="['option-btn', {
-              selected: selectedAnswer === option,
-              correct: showAnswer && option === currentQuestion.correctAnswer,
-              wrong: showAnswer && selectedAnswer === option && option !== currentQuestion.correctAnswer
+              selected: practice.selectedAnswer === option,
+              correct: practice.showAnswer && option === practice.currentQuestion!.correctAnswer,
+              wrong: practice.showAnswer && practice.selectedAnswer === option && option !== practice.currentQuestion!.correctAnswer
             }]"
             @click="selectAnswer(option)"
-            :disabled="showAnswer"
+            :disabled="practice.showAnswer"
           >
             <span class="option-letter">{{ String.fromCharCode(65 + index) }}</span>
             <span class="option-text">{{ option }}</span>
@@ -107,66 +107,61 @@
         </div>
 
         <!-- Explanation -->
-        <div v-if="showAnswer" class="question-explanation">
+        <div v-if="practice.showAnswer" class="question-explanation">
           <h4>解析</h4>
-          <p>{{ currentQuestion.explanation }}</p>
+          <p>{{ practice.currentQuestion!.explanation }}</p>
         </div>
       </div>
 
       <!-- Controls -->
       <div class="question-controls">
-        <BaseButton v-if="!showAnswer" variant="secondary" @click="submitAnswer" :disabled="!selectedAnswer">
+        <BaseButton v-if="!practice.showAnswer" variant="secondary" @click="submitAnswer" :disabled="!practice.selectedAnswer">
           提交答案
         </BaseButton>
         <BaseButton v-else @click="nextQuestion">
-          {{ currentIndex < questions.length - 1 ? '下一题' : '完成' }}
+          {{ practice.currentIndex < practice.totalQuestions - 1 ? '下一题' : '完成' }}
         </BaseButton>
       </div>
 
       <!-- Progress -->
       <div class="question-progress">
-        <BaseProgress :value="((currentIndex + 1) / questions.length) * 100" :show-value="false" />
-        <span class="progress-text">{{ currentIndex + 1 }} / {{ questions.length }}</span>
+        <BaseProgress :value="practice.progress" :show-value="false" />
+        <span class="progress-text">{{ practice.currentIndex + 1 }} / {{ practice.totalQuestions }}</span>
       </div>
     </section>
 
     <!-- Results -->
-    <section v-if="showResults" class="results-section">
+    <section v-if="practice.showResults" class="results-section">
       <PracticeSummary
-        :total-questions="questions.length"
-        :correct-answers="correctCount"
+        :total-questions="practice.totalQuestions"
+        :correct-answers="practice.correctCount"
         :total-time="120 - remainingTime"
-        :points="score"
+        :points="practice.score"
         :weak-tags="[]"
         @retry="resetPractice"
-        @view-mistakes="$router.push('/mistakes')"
+        @view-mistakes="router.push('/mistakes')"
       />
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { practiceApi } from '../api'
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { PageHeader, BaseButton, BaseProgress, Skeleton, EmptyState, Toggle, TimerCountdown, StreakAnimation, PracticeSummary } from '../components'
+import { usePracticeStore } from '../stores/practice'
 import { useToast } from '../composables/useToast'
-import type { PracticeType, PracticeQuestion, CEFRLevel } from '../types'
+import type { PracticeType, CEFRLevel } from '../types'
+
+const router = useRouter()
+const practice = usePracticeStore()
+const toast = useToast()
 
 const selectedType = ref<PracticeType | null>(null)
 const selectedDifficulty = ref<CEFRLevel>('B1')
-const questions = ref<PracticeQuestion[]>([])
-const currentIndex = ref(0)
-const selectedAnswer = ref<string | null>(null)
-const showAnswer = ref(false)
-const showResults = ref(false)
-const score = ref(0)
-const correctCount = ref(0)
-const loading = ref(false)
-const toast = useToast()
-const streakCount = ref(0)
-const showStreak = ref(false)
 const timedMode = ref(false)
 const remainingTime = ref(0)
+const showStreak = ref(false)
 
 const practiceTypes = [
   { value: 'cloze' as PracticeType, label: '完形填空', description: '根据上下文选择正确的单词' },
@@ -183,88 +178,53 @@ const difficultyLevels = [
   { value: 'C1' as CEFRLevel, label: 'C1 高级' }
 ]
 
-const currentQuestion = computed(() => {
-  if (questions.value.length === 0) return null
-  return questions.value[currentIndex.value]
-})
-
 function selectType(type: PracticeType) {
   selectedType.value = type
 }
 
 async function startPractice() {
   if (!selectedType.value) return
-  
-  loading.value = true
-  const res = await practiceApi.getQuestions({
+
+  await practice.loadQuestions({
     type: selectedType.value,
     difficulty: selectedDifficulty.value,
-    limit: 10
+    limit: 10,
   })
-  loading.value = false
-  
-  if (res.success) {
-    questions.value = res.data
-    currentIndex.value = 0
-    selectedAnswer.value = null
-    showAnswer.value = false
-    showResults.value = false
-    score.value = 0
-    correctCount.value = 0
-    streakCount.value = 0
-    showStreak.value = false
-    remainingTime.value = 120
-  }
+  remainingTime.value = 120
 }
 
 function selectAnswer(answer: string) {
-  if (!showAnswer.value) {
-    selectedAnswer.value = answer
-  }
+  practice.selectAnswer(answer)
 }
 
 async function submitAnswer() {
-  if (!selectedAnswer.value || !currentQuestion.value) return
-  
-  showAnswer.value = true
-  
-  const res = await practiceApi.submitAnswer(currentQuestion.value.id, selectedAnswer.value)
-  if (res.success && res.data.correct) {
-    correctCount.value++
-    score.value += res.data.points
-    streakCount.value++
-    if (streakCount.value >= 3) {
+  const wasCorrect = practice.currentQuestion?.correctAnswer
+  await practice.submitAnswer()
+
+  if (wasCorrect && practice.correctCount > 0) {
+    if (practice.streakCount >= 3) {
       showStreak.value = true
     }
     toast.success('回答正确！')
   } else {
-    streakCount.value = 0
     showStreak.value = false
     toast.error('答错了，继续加油！')
   }
 }
 
 function nextQuestion() {
-  if (currentIndex.value < questions.value.length - 1) {
-    currentIndex.value++
-    selectedAnswer.value = null
-    showAnswer.value = false
-  } else {
-    showResults.value = true
-  }
+  practice.nextQuestion()
 }
 
 function resetPractice() {
   selectedType.value = null
-  questions.value = []
-  showResults.value = false
-  streakCount.value = 0
+  practice.reset()
   showStreak.value = false
 }
 
 function onTimeUp() {
   toast.warning('时间到！自动提交')
-  showResults.value = true
+  practice.finishPractice()
 }
 </script>
 

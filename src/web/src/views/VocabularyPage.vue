@@ -8,7 +8,7 @@
     <!-- Word List Tab -->
     <section v-if="activeTab === 'list'" class="word-list-section">
       <div class="list-header">
-        <BaseInput v-model="searchQuery" placeholder="搜索单词...">
+        <BaseInput v-model="vocab.searchQuery" placeholder="搜索单词...">
           <template #prefix>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8"/>
@@ -17,16 +17,16 @@
           </template>
         </BaseInput>
         <BaseButton variant="secondary" @click="startReview">
-          开始复习 ({{ reviewList.length }})
+          开始复习 ({{ vocab.reviewList.length }})
         </BaseButton>
       </div>
 
       <!-- Loading Skeleton -->
-      <Skeleton v-if="loading" variant="table" />
+      <Skeleton v-if="vocab.loading" variant="table" />
 
       <!-- Empty State -->
       <EmptyState
-        v-else-if="words.length === 0"
+        v-else-if="vocab.words.length === 0"
         title="暂无词汇"
         description="开始阅读和听力练习，自动收集生词"
       />
@@ -34,7 +34,7 @@
       <BaseTable
         v-else
         :columns="tableColumns"
-        :data="filteredWords"
+        :data="filteredWords as any"
         @row-click="showWordDetailFromRow"
       >
         <template #word="{ row }">
@@ -90,8 +90,8 @@
         </div>
 
         <div class="flashcard-progress">
-          <span>{{ currentIndex + 1 }} / {{ reviewList.length }}</span>
-          <BaseProgress :value="((currentIndex + 1) / reviewList.length) * 100" :show-value="false" />
+          <span>{{ currentIndex + 1 }} / {{ vocab.reviewList.length }}</span>
+          <BaseProgress :value="((currentIndex + 1) / vocab.reviewList.length) * 100" :show-value="false" />
         </div>
       </div>
 
@@ -174,21 +174,19 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { vocabularyApi } from '../api'
 import { PageHeader, BaseTabs, BaseInput, BaseButton, BaseTable, BaseProgress, BaseModal, FlashCard, Skeleton, EmptyState, PronunciationBtn, WordEtymology, ForgettingCurve } from '../components'
+import { useVocabularyStore } from '../stores/vocabulary'
 import { useToast } from '../composables/useToast'
 import type { Vocabulary } from '../types'
 
+const vocab = useVocabularyStore()
+const toast = useToast()
+
 const activeTab = ref('list')
-const words = ref<Vocabulary[]>([])
-const reviewList = ref<Vocabulary[]>([])
-const searchQuery = ref('')
 const currentIndex = ref(0)
 const showDetail = ref(false)
 const selectedWord = ref<Vocabulary | null>(null)
 const flashCardRef = ref()
-const loading = ref(true)
-const toast = useToast()
 
 const tabs = [
   { value: 'list', label: '词库' },
@@ -203,29 +201,22 @@ const tableColumns = [
 ]
 
 const filteredWords = computed(() => {
-  if (!searchQuery.value) return words.value
-  const query = searchQuery.value.toLowerCase()
-  return words.value.filter(w => 
+  if (!vocab.searchQuery) return vocab.words
+  const query = vocab.searchQuery.toLowerCase()
+  return vocab.words.filter(w =>
     w.word.toLowerCase().includes(query) ||
-    w.chineseDefinition.includes(searchQuery.value)
+    w.chineseDefinition.includes(vocab.searchQuery)
   )
 })
 
 const currentCard = computed(() => {
-  if (reviewList.value.length === 0) return null
-  return reviewList.value[currentIndex.value]
+  if (vocab.reviewList.length === 0) return null
+  return vocab.reviewList[currentIndex.value]
 })
 
-onMounted(async () => {
-  loading.value = true
-  const [wordsRes, reviewRes] = await Promise.all([
-    vocabularyApi.getList(),
-    vocabularyApi.getReviewList()
-  ])
-  
-  if (wordsRes.success) words.value = wordsRes.data.items
-  if (reviewRes.success) reviewList.value = reviewRes.data
-  loading.value = false
+onMounted(() => {
+  vocab.fetchList()
+  vocab.fetchReviewList()
 })
 
 function getMasteryClass(level: number): string {
@@ -235,7 +226,7 @@ function getMasteryClass(level: number): string {
 }
 
 function showWordDetail(row: Record<string, any>) {
-  const word = words.value.find(w => w.id === row.id)
+  const word = vocab.words.find(w => w.id === row.id)
   if (word) {
     selectedWord.value = word
     showDetail.value = true
@@ -243,7 +234,7 @@ function showWordDetail(row: Record<string, any>) {
 }
 
 function showWordDetailFromRow(row: Record<string, any>) {
-  const word = words.value.find(w => w.id === row.id)
+  const word = vocab.words.find(w => w.id === row.id)
   if (word) {
     selectedWord.value = word
     showDetail.value = true
@@ -251,7 +242,7 @@ function showWordDetailFromRow(row: Record<string, any>) {
 }
 
 function startReview() {
-  if (reviewList.value.length > 0) {
+  if (vocab.reviewList.length > 0) {
     activeTab.value = 'flashcard'
     currentIndex.value = 0
   }
@@ -276,7 +267,7 @@ function markAsEasy() {
 }
 
 function nextCard() {
-  if (currentIndex.value < reviewList.value.length - 1) {
+  if (currentIndex.value < vocab.reviewList.length - 1) {
     currentIndex.value++
     flashCardRef.value?.reset()
   } else {

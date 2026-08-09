@@ -179,16 +179,14 @@ async function analyze() {
     ? props.question.correctAnswer.join(', ')
     : props.question.correctAnswer
 
-  const response = await aiService.analyzeError(
-    props.question.question,
-    props.userAnswer,
-    correctAnswer
-  )
-
-  if (response.success) {
-    analysis.value = response.data
-  } else {
-    error.value = response.error || '分析失败，请重试'
+  try {
+    analysis.value = await aiService.analyzeError({
+      question: props.question.question,
+      userAnswer: props.userAnswer,
+      correctAnswer,
+    })
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '分析失败，请重试'
   }
 
   isLoading.value = false

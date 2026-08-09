@@ -95,18 +95,20 @@ const difficultyLevels = [
 
 const debouncedSearch = debounce(async () => {
   if (!searchQuery.value.trim()) return
-  
+
   loading.value = true
   hasSearched.value = true
-  const res = await examplesApi.search({
-    keyword: searchQuery.value,
-    difficulty: selectedDifficulty.value || undefined
-  })
-  
-  loading.value = false
-  if (res.success) {
-    results.value = res.data
-    toast.info(`找到 ${res.data.length} 条结果`)
+  try {
+    const data = await examplesApi.search({
+      keyword: searchQuery.value,
+      difficulty: selectedDifficulty.value || undefined
+    })
+    results.value = data
+    toast.info(`找到 ${data.length} 条结果`)
+  } catch {
+    toast.error('搜索失败')
+  } finally {
+    loading.value = false
   }
 }, 300)
 

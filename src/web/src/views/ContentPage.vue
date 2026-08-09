@@ -44,7 +44,7 @@
     </section>
 
     <!-- Loading State -->
-    <section v-if="loading" class="content-grid">
+    <section v-if="content.loading" class="content-grid">
       <div v-for="i in 6" :key="i" class="card-skeleton">
         <Skeleton variant="card" />
       </div>
@@ -52,7 +52,7 @@
 
     <!-- Empty State -->
     <EmptyState
-      v-else-if="items.length === 0"
+      v-else-if="content.items.length === 0"
       title="暂无内容"
       description="试试调整筛选条件，或稍后再来看看"
       icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
@@ -61,10 +61,10 @@
     <!-- Content Grid -->
     <section v-else class="content-grid">
       <article
-        v-for="item in items"
+        v-for="item in content.items"
         :key="item.id"
         class="content-card"
-        @click="goToDetail(item)"
+        @click="goToDetail(item.id)"
       >
         <!-- Cover Image -->
         <div class="card-cover" :class="`cover-${item.type}`">
@@ -133,16 +133,13 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { contentApi } from '../api'
 import { PageHeader, Skeleton, EmptyState, BaseTabs } from '../components'
-import { useToast } from '../composables/useToast'
-import type { ContentItem, ContentType, ContentCategory, CEFRLevel } from '../types'
+import { useContentStore } from '../stores/content'
+import type { ContentType, ContentCategory, CEFRLevel } from '../types'
 
 const router = useRouter()
-const toast = useToast()
+const content = useContentStore()
 
-const loading = ref(true)
-const items = ref<ContentItem[]>([])
 const selectedType = ref('')
 const selectedCategory = ref('')
 const selectedDifficulty = ref<CEFRLevel | ''>('')
@@ -172,30 +169,20 @@ const difficultyLevels = [
   { value: 'C2' as CEFRLevel, label: 'C2' }
 ]
 
-async function fetchContent() {
-  loading.value = true
-  try {
-    const res = await contentApi.getList({
-      type: (selectedType.value as ContentType) || undefined,
-      category: (selectedCategory.value as ContentCategory) || undefined,
-      difficulty: selectedDifficulty.value || undefined
-    })
-    if (res.success) {
-      items.value = res.data.items
-    }
-  } catch {
-    toast.error('加载内容失败，请稍后重试')
-  } finally {
-    loading.value = false
-  }
+function fetchContent() {
+  content.fetchList({
+    type: (selectedType.value as ContentType) || undefined,
+    category: (selectedCategory.value as ContentCategory) || undefined,
+    difficulty: selectedDifficulty.value || undefined,
+  })
 }
 
 watch([selectedType, selectedCategory, selectedDifficulty], fetchContent)
 
 onMounted(fetchContent)
 
-function goToDetail(item: ContentItem) {
-  router.push(`/content/${item.id}`)
+function goToDetail(id: string) {
+  router.push(`/content/${id}`)
 }
 
 function getTypeLabel(type: ContentType): string {
@@ -207,7 +194,7 @@ function getTypeLabel(type: ContentType): string {
   return labels[type]
 }
 
-function getDurationLabel(item: ContentItem): string {
+function getDurationLabel(item: { type: string; estimatedMinutes?: number; duration?: number }): string {
   if (item.type === 'article') {
     return `${item.estimatedMinutes || 0} 分钟`
   }

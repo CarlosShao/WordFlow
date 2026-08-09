@@ -2,42 +2,55 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { UserProfile } from '../types'
 import { authApi } from '../api/auth'
+import { setTokens, clearTokens } from '../api/client'
 
-const TOKEN_KEY = 'wordflow-auth-token'
 const USER_KEY = 'wordflow-auth-user'
 
+function loadUser(): UserProfile | null {
+  const stored = localStorage.getItem(USER_KEY)
+  if (!stored) return null
+  try {
+    return JSON.parse(stored)
+  } catch {
+    return null
+  }
+}
+
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(localStorage.getItem(TOKEN_KEY))
-  const user = ref<UserProfile | null>(JSON.parse(localStorage.getItem(USER_KEY) || 'null'))
+  const user = ref<UserProfile | null>(loadUser())
   const loading = ref(false)
+  const error = ref<string | null>(null)
 
-  const isAuthenticated = computed(() => !!token.value && !!user.value)
+  const isAuthenticated = computed(() => !!user.value)
+  const initials = computed(() => {
+    const name = user.value?.username || '?'
+    return name.charAt(0).toUpperCase()
+  })
 
-  function setAuth(newToken: string, newUser: UserProfile) {
-    token.value = newToken
+  function setUser(newUser: UserProfile) {
     user.value = newUser
-    localStorage.setItem(TOKEN_KEY, newToken)
     localStorage.setItem(USER_KEY, JSON.stringify(newUser))
   }
 
   function clearAuth() {
-    token.value = null
     user.value = null
-    localStorage.removeItem(TOKEN_KEY)
+    error.value = null
     localStorage.removeItem(USER_KEY)
+    clearTokens()
   }
 
   async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
     loading.value = true
+    error.value = null
     try {
-      const res = await authApi.login(email, password)
-      if (res.success && res.data) {
-        setAuth(res.data.token, res.data.user)
-        return { success: true }
-      }
-      return { success: false, error: res.error || '登录失败' }
+      const result = await authApi.login(email, password)
+      setTokens(result.accessToken, result.refreshToken)
+      setUser(result.user)
+      return { success: true }
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : '网络错误' }
+      const msg = e instanceof Error ? e.message : '登录失败'
+      error.value = msg
+      return { success: false, error: msg }
     } finally {
       loading.value = false
     }
@@ -45,67 +58,71 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function register(username: string, email: string, password: string): Promise<{ success: boolean; error?: string }> {
     loading.value = true
+    error.value = null
     try {
-      const res = await authApi.register(username, email, password)
-      if (res.success && res.data) {
-        setAuth(res.data.token, res.data.user)
-        return { success: true }
-      }
-      return { success: false, error: res.error || '注册失败' }
+      const result = await authApi.register(username, email, password)
+      setTokens(result.accessToken, result.refreshToken)
+      setUser(result.user)
+      return { success: true }
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : '网络错误' }
+      const msg = e instanceof Error ? e.message : '注册失败'
+      error.value = msg
+      return { success: false, error: msg }
     } finally {
       loading.value = false
     }
   }
 
   async function fetchProfile(): Promise<void> {
-    if (!token.value) return
     try {
-      const res = await authApi.getProfile()
-      if (res.success && res.data) {
-        user.value = res.data
-        localStorage.setItem(USER_KEY, JSON.stringify(res.data))
-      }
+      const profile = await authApi.getProfile()
+      setUser(profile)
     } catch {
-      // silently fail
+      // silently fail - token might be expired
     }
   }
 
   async function updateProfile(data: Partial<UserProfile>): Promise<{ success: boolean; error?: string }> {
     try {
-      const res = await authApi.updateProfile(data)
-      if (res.success && res.data) {
-        user.value = res.data
-        localStorage.setItem(USER_KEY, JSON.stringify(res.data))
-        return { success: true }
-      }
-      return { success: false, error: res.error || '更新失败' }
+      const updated = await authApi.updateProfile(data)
+      setUser(updated)
+      return { success: true }
     } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : '网络错误' }
+      const msg = e instanceof Error ? e.message : '更新失败'
+      return { success: false, error: msg }
     }
   }
 
   async function logout(): Promise<void> {
     try {
       await authApi.logout()
+    } catch {
+      // ignore server errors on logout
     } finally {
       clearAuth()
     }
   }
 
-  function handleOAuthCallback(urlToken: string) {
-    // For OAuth, we store the token and fetch user profile
-    token.value = urlToken
-    localStorage.setItem(TOKEN_KEY, urlToken)
+  function handleOAuthCallback(accessToken: string, refreshToken?: string) {
+    if (refreshToken) {
+      setTokens(accessToken, refreshToken)
+    }
     fetchProfile()
   }
 
+  // Initialize: fetch profile if user exists but tokens might be needed
+  function initialize() {
+    if (user.value) {
+      fetchProfile()
+    }
+  }
+
   return {
-    token,
     user,
     loading,
+    error,
     isAuthenticated,
+    initials,
     login,
     register,
     fetchProfile,
@@ -113,5 +130,6 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     handleOAuthCallback,
     clearAuth,
+    initialize,
   }
 })

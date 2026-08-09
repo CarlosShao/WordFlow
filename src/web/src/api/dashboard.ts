@@ -1,47 +1,34 @@
-import type { ApiResponse, DashboardStats, HeatmapData, ChartDataPoint } from '../types'
-import { mockDashboardStats, mockHeatmapData, mockWordGrowthData, mockWeeklyStudyData, mockTodayRecommendations } from '../mocks'
-
-// Simulate network delay
-const delay = (ms: number = 300) => new Promise(resolve => setTimeout(resolve, ms))
+import client from './client'
+import type { DashboardStats, HeatmapData, ChartDataPoint, ContentItem } from '../types'
 
 export const dashboardApi = {
-  async getStats(): Promise<ApiResponse<DashboardStats>> {
-    await delay()
-    return {
-      success: true,
-      data: mockDashboardStats
-    }
+  async getStats(): Promise<DashboardStats> {
+    const data = await client.get('/api/v1/dashboard/stats')
+    return data as unknown as DashboardStats
   },
 
-  async getHeatmapData(): Promise<ApiResponse<HeatmapData[]>> {
-    await delay(500)
-    return {
-      success: true,
-      data: mockHeatmapData
-    }
+  async getHeatmapData(): Promise<HeatmapData[]> {
+    const data = await client.get('/api/v1/dashboard/heatmap')
+    return data as unknown as HeatmapData[]
   },
 
-  async getWordGrowthData(): Promise<ApiResponse<ChartDataPoint[]>> {
-    await delay()
-    return {
-      success: true,
-      data: mockWordGrowthData
-    }
+  async getWordGrowthData(): Promise<ChartDataPoint[]> {
+    const data = await client.get('/api/v1/dashboard/word-growth')
+    return data as unknown as ChartDataPoint[]
   },
 
-  async getWeeklyStudyData(): Promise<ApiResponse<ChartDataPoint[]>> {
-    await delay()
-    return {
-      success: true,
-      data: mockWeeklyStudyData
-    }
+  async getWeeklyStudyData(): Promise<ChartDataPoint[]> {
+    const data = await client.get('/api/v1/dashboard/weekly-study')
+    return data as unknown as ChartDataPoint[]
   },
 
-  async getTodayRecommendations(): Promise<ApiResponse<typeof mockTodayRecommendations>> {
-    await delay()
-    return {
-      success: true,
-      data: mockTodayRecommendations
-    }
-  }
+  async getTodayRecommendations(): Promise<ContentItem[]> {
+    const data = await client.get('/api/v1/dashboard/recommendations')
+    return data as unknown as ContentItem[]
+  },
+
+  async getStreak(): Promise<{ current: number; longest: number }> {
+    const data = await client.get('/api/v1/dashboard/streak')
+    return data as unknown as { current: number; longest: number }
+  },
 }

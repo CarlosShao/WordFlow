@@ -1,74 +1,61 @@
-import type { ApiResponse, PracticeQuestion, PracticeType, CEFRLevel } from '../types'
-import { mockPracticeQuestions } from '../mocks'
+import client from './client'
+import type { PracticeQuestion, PracticeType, CEFRLevel, PracticeSession } from '../types'
 
-const delay = (ms: number = 300) => new Promise(resolve => setTimeout(resolve, ms))
+export interface AnswerResult {
+  correct: boolean
+  correctAnswer: string | string[]
+  explanation: string
+  points: number
+}
 
 export const practiceApi = {
+  async createSession(params: {
+    type: PracticeType
+    difficulty?: CEFRLevel
+    contentId?: string
+    questionCount?: number
+  }): Promise<PracticeSession> {
+    const data = await client.post('/api/v1/practice/sessions', params)
+    return data as unknown as PracticeSession
+  },
+
   async getQuestions(params?: {
     type?: PracticeType
     difficulty?: CEFRLevel
     limit?: number
-  }): Promise<ApiResponse<PracticeQuestion[]>> {
-    await delay()
-    const { type, difficulty, limit = 10 } = params || {}
-    
-    let filtered = [...mockPracticeQuestions]
-    
-    if (type) {
-      filtered = filtered.filter(q => q.type === type)
-    }
-    if (difficulty) {
-      filtered = filtered.filter(q => q.difficulty === difficulty)
-    }
-    
-    // Shuffle and limit
-    const shuffled = filtered.sort(() => Math.random() - 0.5)
-    
-    return {
-      success: true,
-      data: shuffled.slice(0, limit)
-    }
+  }): Promise<PracticeQuestion[]> {
+    const data = await client.get('/api/v1/practice/questions', { params: params as Record<string, string | number | boolean> })
+    return data as unknown as PracticeQuestion[]
   },
 
-  async getById(id: string): Promise<ApiResponse<PracticeQuestion | null>> {
-    await delay()
-    const question = mockPracticeQuestions.find(q => q.id === id)
-    return {
-      success: !!question,
-      data: question || null,
-      error: question ? undefined : 'Question not found'
-    }
+  async getById(id: string): Promise<PracticeQuestion> {
+    const data = await client.get(`/api/v1/practice/questions/${id}`)
+    return data as unknown as PracticeQuestion
   },
 
-  async submitAnswer(questionId: string, answer: string | string[]): Promise<ApiResponse<{
-    correct: boolean
-    correctAnswer: string | string[]
-    explanation: string
-    points: number
-  }>> {
-    await delay(200)
-    const question = mockPracticeQuestions.find(q => q.id === questionId)
-    
-    if (!question) {
-      return {
-        success: false,
-        data: { correct: false, correctAnswer: '', explanation: '', points: 0 },
-        error: 'Question not found'
-      }
-    }
-    
-    const isCorrect = Array.isArray(question.correctAnswer)
-      ? Array.isArray(answer) && question.correctAnswer.every(a => answer.includes(a))
-      : answer === question.correctAnswer
-    
-    return {
-      success: true,
-      data: {
-        correct: isCorrect,
-        correctAnswer: question.correctAnswer,
-        explanation: question.explanation,
-        points: isCorrect ? question.points : 0
-      }
-    }
-  }
+  async submitAnswer(sessionId: string, questionId: string, answer: string | string[]): Promise<AnswerResult> {
+    const data = await client.post(`/api/v1/practice/sessions/${sessionId}/answer`, {
+      questionId,
+      answer,
+    })
+    return data as unknown as AnswerResult
+  },
+
+  async submitAnswerDirect(questionId: string, answer: string | string[]): Promise<AnswerResult> {
+    const data = await client.post('/api/v1/practice/answer', {
+      questionId,
+      answer,
+    })
+    return data as unknown as AnswerResult
+  },
+
+  async completeSession(sessionId: string): Promise<{ score: number; totalPoints: number; correctCount: number }> {
+    const data = await client.post(`/api/v1/practice/sessions/${sessionId}/complete`)
+    return data as unknown as { score: number; totalPoints: number; correctCount: number }
+  },
+
+  async getSession(sessionId: string): Promise<PracticeSession> {
+    const data = await client.get(`/api/v1/practice/sessions/${sessionId}`)
+    return data as unknown as PracticeSession
+  },
 }

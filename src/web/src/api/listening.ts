@@ -1,47 +1,22 @@
-import type { ApiResponse, ListeningMaterial, ListeningQuestion, CEFRLevel } from '../types'
-import { mockListeningMaterials, mockListeningQuestions } from '../mocks'
-
-const delay = (ms: number = 300) => new Promise(resolve => setTimeout(resolve, ms))
+import client from './client'
+import type { ListeningMaterial, ListeningQuestion, CEFRLevel } from '../types'
 
 export const listeningApi = {
   async getList(params?: {
     difficulty?: CEFRLevel
     tags?: string[]
-  }): Promise<ApiResponse<ListeningMaterial[]>> {
-    await delay()
-    const { difficulty, tags } = params || {}
-    
-    let filtered = [...mockListeningMaterials]
-    
-    if (difficulty) {
-      filtered = filtered.filter(m => m.difficulty === difficulty)
-    }
-    if (tags && tags.length > 0) {
-      filtered = filtered.filter(m => tags.some(t => m.tags.includes(t)))
-    }
-    
-    return {
-      success: true,
-      data: filtered
-    }
+  }): Promise<ListeningMaterial[]> {
+    const data = await client.get('/api/v1/content', { params: { ...params, type: 'podcast' } as unknown as Record<string, string | number | boolean> })
+    return data as unknown as ListeningMaterial[]
   },
 
-  async getById(id: string): Promise<ApiResponse<ListeningMaterial | null>> {
-    await delay()
-    const material = mockListeningMaterials.find(m => m.id === id)
-    return {
-      success: !!material,
-      data: material || null,
-      error: material ? undefined : 'Material not found'
-    }
+  async getById(id: string): Promise<ListeningMaterial> {
+    const data = await client.get(`/api/v1/content/${id}`)
+    return data as unknown as ListeningMaterial
   },
 
-  async getQuestions(materialId: string): Promise<ApiResponse<ListeningQuestion[]>> {
-    await delay()
-    const questions = mockListeningQuestions.filter(q => q.materialId === materialId)
-    return {
-      success: true,
-      data: questions
-    }
-  }
+  async getQuestions(materialId: string): Promise<ListeningQuestion[]> {
+    const data = await client.get('/api/v1/practice/questions', { params: { contentId: materialId, type: 'listening' } })
+    return data as unknown as ListeningQuestion[]
+  },
 }
