@@ -8,8 +8,8 @@ const vocabularyQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
   keyword: z.string().optional(),
-  mastery: z.enum(['NEW', 'LEARNING', 'REVIEWING', 'MASTERED']).optional(),
-  sortBy: z.enum(['createdAt', 'nextReviewAt', 'word']).default('createdAt'),
+  mastery: z.enum(['NOT_REVIEWED', 'NEW', 'LEARNING', 'REVIEWING', 'MASTERED']).optional(),
+  sortBy: z.enum(['createdAt', 'nextReviewDate', 'word']).default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 })
 
@@ -34,13 +34,13 @@ const reviewSchema = z.object({
  * SM-2 简化算法
  */
 export function calculateSm2(
-  efactor: number,
+  easeFactor: number,
   interval: number,
   repetitions: number,
   quality: number
-): { efactor: number; interval: number; repetitions: number } {
-  let newEfactor = efactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-  newEfactor = Math.max(1.3, newEfactor)
+): { easeFactor: number; interval: number; repetitions: number } {
+  let newEaseFactor = easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+  newEaseFactor = Math.max(1.3, newEaseFactor)
 
   let newInterval: number
   let newRepetitions: number
@@ -56,11 +56,11 @@ export function calculateSm2(
     } else if (newRepetitions === 2) {
       newInterval = 3
     } else {
-      newInterval = Math.round(interval * newEfactor)
+      newInterval = Math.round(interval * newEaseFactor)
     }
   }
 
-  return { efactor: newEfactor, interval: newInterval, repetitions: newRepetitions }
+  return { easeFactor: newEaseFactor, interval: newInterval, repetitions: newRepetitions }
 }
 
 export async function vocabularyRoutes(app: FastifyInstance) {
@@ -108,9 +108,9 @@ export async function vocabularyRoutes(app: FastifyInstance) {
     const items = await prisma.vocabulary.findMany({
       where: {
         userId,
-        nextReviewAt: { lte: new Date() },
+        nextReviewDate: { lte: new Date() },
       },
-      orderBy: { nextReviewAt: 'asc' },
+      orderBy: { nextReviewDate: 'asc' },
       take: limit,
     })
 
@@ -154,10 +154,10 @@ export async function vocabularyRoutes(app: FastifyInstance) {
         ...body,
         userId,
         masteryStatus: 'NEW',
-        efactor: 2.5,
+        easeFactor: 2.5,
         interval: 0,
         repetitions: 0,
-        nextReviewAt: new Date(), // 新词立即可复习
+        nextReviewDate: new Date(), // 新词立即可复习
       },
     })
 
@@ -219,8 +219,8 @@ export async function vocabularyRoutes(app: FastifyInstance) {
       throw new AppError('NOT_FOUND', '词汇不存在', 404)
     }
 
-    const sm2 = calculateSm2(vocab.efactor, vocab.interval, vocab.repetitions, quality)
-    const nextReviewAt = new Date(Date.now() + sm2.interval * 24 * 60 * 60 * 1000)
+    const sm2 = calculateSm2(vocab.easeFactor, vocab.interval, vocab.repetitions, quality)
+    const nextReviewDate = new Date(Date.now() + sm2.interval * 24 * 60 * 60 * 1000)
 
     // 更新掌握度状态
     let masteryStatus = vocab.masteryStatus
@@ -235,12 +235,12 @@ export async function vocabularyRoutes(app: FastifyInstance) {
     const updated = await prisma.vocabulary.update({
       where: { id },
       data: {
-        efactor: sm2.efactor,
+        easeFactor: sm2.easeFactor,
         interval: sm2.interval,
         repetitions: sm2.repetitions,
-        nextReviewAt,
+        nextReviewDate,
         masteryStatus,
-        lastReviewedAt: new Date(),
+        lastReviewDate: new Date(),
       },
     })
 

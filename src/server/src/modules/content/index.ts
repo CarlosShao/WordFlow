@@ -93,6 +93,7 @@ export async function contentRoutes(app: FastifyInstance) {
 
   // 创建内容（需认证）
   app.post('/api/v1/content', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const userId = request.user!.id
     const body = createContentSchema.parse(request.body)
 
     const existing = await prisma.content.findUnique({
@@ -113,15 +114,17 @@ export async function contentRoutes(app: FastifyInstance) {
         ...body,
         viewCount: 0,
         isPublished: true,
+        createdBy: userId,
       },
     })
 
-    logger.info({ contentId: content.id, title: content.title }, 'Content created')
+    logger.info({ contentId: content.id, title: content.title, createdBy: userId }, 'Content created')
     return reply.code(201).send({ success: true, data: content })
   })
 
-  // 更新内容
+  // 更新内容（仅创建者可修改）
   app.put('/api/v1/content/:id', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const userId = request.user!.id
     const { id } = request.params as { id: string }
     const body = updateContentSchema.parse(request.body)
 
@@ -130,17 +133,23 @@ export async function contentRoutes(app: FastifyInstance) {
       throw new AppError('NOT_FOUND', '内容不存在', 404)
     }
 
+    // 所有权验证：仅创建者可修改
+    if (existing.createdBy && existing.createdBy !== userId) {
+      throw new AppError('FORBIDDEN', '无权修改此内容', 403)
+    }
+
     const content = await prisma.content.update({
       where: { id },
       data: body,
     })
 
-    logger.info({ contentId: content.id }, 'Content updated')
+    logger.info({ contentId: content.id, updatedBy: userId }, 'Content updated')
     return reply.send({ success: true, data: content })
   })
 
-  // 删除内容
+  // 删除内容（仅创建者可删除）
   app.delete('/api/v1/content/:id', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const userId = request.user!.id
     const { id } = request.params as { id: string }
 
     const existing = await prisma.content.findUnique({ where: { id } })
@@ -148,8 +157,13 @@ export async function contentRoutes(app: FastifyInstance) {
       throw new AppError('NOT_FOUND', '内容不存在', 404)
     }
 
+    // 所有权验证：仅创建者可删除
+    if (existing.createdBy && existing.createdBy !== userId) {
+      throw new AppError('FORBIDDEN', '无权删除此内容', 403)
+    }
+
     await prisma.content.delete({ where: { id } })
-    logger.info({ contentId: id }, 'Content deleted')
+    logger.info({ contentId: id, deletedBy: userId }, 'Content deleted')
     return reply.code(204).send()
   })
 

@@ -99,12 +99,70 @@ src/server/
 - 生产用 `DATABASE_URL` 连接云数据库
 - MinIO 兼容 S3 API，可替换为 AWS S3
 
-## 安全清单
+## 安全最佳实践
 
-- [ ] 环境变量不硬编码，全部走 config
-- [ ] 密钥（JWT_SECRET、API_KEY）不进日志
-- [ ] 用户输入全部 Zod 校验
-- [ ] SQL 注入防护（Prisma 参数化查询）
-- [ ] CORS 白名单限制
-- [ ] Helmet 启用安全头
+### 用户隔离（强制）
+
+1. **所有用户数据查询必须带 `userId` 过滤**
+   ```typescript
+   // ✅ 正确
+   prisma.vocabulary.findMany({ where: { userId, ... } })
+   prisma.vocabulary.findFirst({ where: { id, userId } })
+
+   // ❌ 错误（缺少 userId 过滤，导致数据泄露）
+   prisma.vocabulary.findMany({ where: { id: { in: ids } } })
+   ```
+
+2. **更新/删除前必须验证所有权**
+   ```typescript
+   // ✅ 正确：先 findFirst 验证所有权
+   const existing = await prisma.vocabulary.findFirst({ where: { id, userId } })
+   if (!existing) throw new AppError('NOT_FOUND', '资源不存在', 404)
+   await prisma.vocabulary.delete({ where: { id } })
+   ```
+
+3. **批量查询同样需要隔离**
+   ```typescript
+   // ✅ 正确：通过 vocabularyIds 生成练习时也要带 userId
+   prisma.vocabulary.findMany({
+     where: { id: { in: vocabIds }, userId },  // userId 必须存在
+   })
+   ```
+
+### 内容资源所有权
+
+- Content 是共享资源，但创建者拥有修改/删除权限
+- 创建时设置 `createdBy: userId`
+- 更新/删除前验证 `existing.createdBy === userId`
+- `createdBy` 为 null 的遗留内容允许任何人修改（向后兼容）
+
+### 认证中间件
+
+- 需认证路由必须配置 `{ preHandler: [app.authenticate] }`
+- 公开路由（如内容列表、内容详情）不配置中间件
+- 混合路由（如记录浏览）使用 `request.user?.id` 可选注入
+
+### 输入验证
+
+- 所有 POST/PUT 请求体必须用 Zod `safeParse` 或 `parse` 校验
+- 路径参数通过 Prisma 参数化查询天然防护 SQL 注入
+- 分页参数用 `z.coerce.number().min(1).max(100)` 限制范围
+
+### 数据完整性
+
+- Prisma schema 外键约束 + `onDelete: Cascade` 保证级联删除
+- 唯一约束：`@@unique([userId, word])` 等保证数据一致性
+- 数据库枚举（enum）约束状态值，避免无效状态
+
+### 安全清单
+
+- [x] 环境变量不硬编码，全部走 config
+- [x] 密钥（JWT_SECRET、API_KEY）不进日志
+- [x] 用户输入全部 Zod 校验
+- [x] SQL 注入防护（Prisma 参数化查询）
+- [x] CORS 白名单限制
+- [x] Helmet 启用安全头
 - [ ] 限流（生产环境启用 `@fastify/rate-limit`）
+- [x] 用户隔离：所有查询带 userId 过滤
+- [x] 所有权验证：更新/删除前 findFirst({ id, userId })
+- [x] 内容资源：createdBy 字段 + 所有权验证

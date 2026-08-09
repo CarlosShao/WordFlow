@@ -72,7 +72,7 @@ export async function practiceRoutes(app: FastifyInstance) {
     if (!vocabIds || vocabIds.length === 0) {
       // 从待复习词汇抽取
       const dueVocabs = await prisma.vocabulary.findMany({
-        where: { userId, nextReviewAt: { lte: new Date() } },
+        where: { userId, nextReviewDate: { lte: new Date() } },
         select: { id: true },
         take: body.questionCount,
       })
@@ -83,9 +83,9 @@ export async function practiceRoutes(app: FastifyInstance) {
       throw new AppError('NO_DATA', '没有可生成练习的词汇，请先添加词汇或降低复习阈值', 400)
     }
 
-    // 获取词汇数据
+    // 获取词汇数据（必须带 userId 隔离，防止通过 vocabularyIds 越权访问其他用户词汇）
     const vocabs = await prisma.vocabulary.findMany({
-      where: { id: { in: vocabIds } },
+      where: { id: { in: vocabIds }, userId },
     })
 
     // 生成题目（简化版：翻译选择题 + 填空）
@@ -156,12 +156,12 @@ export async function practiceRoutes(app: FastifyInstance) {
     if (!isCorrect && question.vocabularyId) {
       await prisma.mistake.upsert({
         where: {
-          userId_vocabularyId: { userId, vocabularyId: question.vocabularyId! },
+          userId_vocabularyId: { userId, vocabularyId: question.vocabularyId },
         },
         update: { reviewCount: { increment: 1 }, lastWrongAt: new Date() },
         create: {
           userId,
-          vocabularyId: question.vocabularyId!,
+          vocabularyId: question.vocabularyId,
           contentId: question.contentId,
           wrongAnswer: answer,
           correctAnswer: question.correctAnswer,

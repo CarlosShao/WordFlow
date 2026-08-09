@@ -29,14 +29,14 @@ const generateQuestionSchema = z.object({
 })
 
 async function callLlm(messages: { role: string; content: string }[]): Promise<string> {
-  const response = await fetch(`${config.LLM_BASE_URL}/chat/completions`, {
+  const response = await fetch(`${config.ai.apiBaseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.LLM_API_KEY}`,
+      'Authorization': `Bearer ${config.ai.apiKey}`,
     },
     body: JSON.stringify({
-      model: config.LLM_MODEL,
+      model: config.ai.model,
       messages,
       temperature: 0.7,
       max_tokens: 1024,
@@ -129,7 +129,7 @@ export async function aiRoutes(app: FastifyInstance) {
       vocabData = vocabs
     } else {
       const due = await prisma.vocabulary.findMany({
-        where: { userId, nextReviewAt: { lte: new Date() } },
+        where: { userId, nextReviewDate: { lte: new Date() } },
         select: { word: true, translation: true },
         take: 5,
       })

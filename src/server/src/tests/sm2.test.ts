@@ -6,8 +6,8 @@ describe('SM-2 Algorithm', () => {
     const result = calculateSm2(2.5, 0, 0, 5)
     expect(result.repetitions).toBe(1)
     expect(result.interval).toBe(1)
-    // efactor = 2.5 + (0.1 - 0) = 2.6
-    expect(result.efactor).toBeCloseTo(2.6, 1)
+    // easeFactor = 2.5 + (0.1 - 0) = 2.6
+    expect(result.easeFactor).toBeCloseTo(2.6, 1)
   })
 
   it('第二次复习 quality 5 → interval=3, repetitions=2', () => {
@@ -28,25 +28,25 @@ describe('SM-2 Algorithm', () => {
     expect(result.interval).toBe(1)
   })
 
-  it('efactor 最低不低于 1.3', () => {
-    let efactor = 2.5
+  it('easeFactor 最低不低于 1.3', () => {
+    let easeFactor = 2.5
     for (let i = 0; i < 10; i++) {
-      const result = calculateSm2(efactor, 1, 1, 0)
-      efactor = result.efactor
+      const result = calculateSm2(easeFactor, 1, 1, 0)
+      easeFactor = result.easeFactor
     }
-    expect(efactor).toBeGreaterThanOrEqual(1.3)
+    expect(easeFactor).toBeGreaterThanOrEqual(1.3)
   })
 
-  it('quality=4 → efactor 减少', () => {
+  it('quality=4 → easeFactor 减少', () => {
     const result = calculateSm2(2.5, 1, 1, 4)
-    // efactor = 2.5 + (0.1 - 1 * (0.08 + 1 * 0.02)) = 2.5 - 0.1 = 2.4
-    expect(result.efactor).toBeCloseTo(2.4, 0)
+    // easeFactor = 2.5 + (0.1 - 1 * (0.08 + 1 * 0.02)) = 2.5 - 0.1 = 2.4
+    expect(result.easeFactor).toBeCloseTo(2.4, 0)
   })
 
   it('连续答对 4 次 + interval >= 14 → MASTERED 条件触发', () => {
-    let state = { efactor: 2.5, interval: 0, repetitions: 0 }
+    let state = { easeFactor: 2.5, interval: 0, repetitions: 0 }
     for (let i = 0; i < 5; i++) {
-      state = calculateSm2(state.efactor, state.interval, state.repetitions, 5)
+      state = calculateSm2(state.easeFactor, state.interval, state.repetitions, 5)
     }
     // repetitions >= 4 且 interval >= 14 应该成立
     expect(state.repetitions).toBeGreaterThanOrEqual(4)

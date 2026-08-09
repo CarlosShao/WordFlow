@@ -88,7 +88,7 @@ export async function mistakeRoutes(app: FastifyInstance) {
       data: {
         masteryStatus,
         reviewCount: { increment: 1 },
-        lastReviewedAt: new Date(),
+        lastReviewDate: new Date(),
       },
     })
 

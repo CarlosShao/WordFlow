@@ -23,7 +23,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
     ] = await Promise.all([
       prisma.vocabulary.count({ where: { userId } }),
       prisma.vocabulary.count({ where: { userId, masteryStatus: 'MASTERED' } }),
-      prisma.vocabulary.count({ where: { userId, nextReviewAt: { lte: new Date() } } }),
+      prisma.vocabulary.count({ where: { userId, nextReviewDate: { lte: new Date() } } }),
       prisma.practiceSession.count({
         where: {
           userId,

@@ -6,10 +6,7 @@ let redis: Redis | undefined
 
 export function getRedis(): Redis {
   if (!redis) {
-    redis = new Redis({
-      host: config.REDIS_HOST,
-      port: config.REDIS_PORT,
-      password: config.REDIS_PASSWORD,
+    redis = new Redis(config.redisUrl, {
       maxRetriesPerRequest: 3,
       retryStrategy(times) {
         const delay = Math.min(times * 50, 2000)
