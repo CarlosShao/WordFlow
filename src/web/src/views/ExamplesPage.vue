@@ -70,18 +70,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { examplesApi } from '../api'
+import { ref, computed } from 'vue'
+import { useVocabularyStore } from '../stores/vocabulary'
 import { PageHeader, BaseInput, BaseButton, Skeleton, EmptyState, PronunciationBtn } from '../components'
 import { useToast } from '../composables/useToast'
 import { debounce } from '../utils/debounce'
 import type { ExampleSearchResult, CEFRLevel } from '../types'
 
+const vocabStore = useVocabularyStore()
 const searchQuery = ref('')
 const selectedDifficulty = ref<CEFRLevel | null>(null)
-const results = ref<ExampleSearchResult[]>([])
+const results = computed(() => vocabStore.exampleResults)
 const hasSearched = ref(false)
-const loading = ref(false)
+const loading = computed(() => vocabStore.examplesLoading)
 const toast = useToast()
 
 const difficultyLevels = [
@@ -96,20 +97,12 @@ const difficultyLevels = [
 const debouncedSearch = debounce(async () => {
   if (!searchQuery.value.trim()) return
 
-  loading.value = true
   hasSearched.value = true
-  try {
-    const data = await examplesApi.search({
-      keyword: searchQuery.value,
-      difficulty: selectedDifficulty.value || undefined
-    })
-    results.value = data
-    toast.info(`找到 ${data.length} 条结果`)
-  } catch {
-    toast.error('搜索失败')
-  } finally {
-    loading.value = false
-  }
+  await vocabStore.searchExamples(
+    searchQuery.value,
+    selectedDifficulty.value || undefined
+  )
+  toast.info(`找到 ${results.value.length} 条结果`)
 }, 300)
 
 async function search() {

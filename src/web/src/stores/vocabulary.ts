@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Vocabulary, CEFRLevel } from '../types'
+import type { Vocabulary, CEFRLevel, ExampleSearchResult } from '../types'
 import { vocabularyApi } from '../api/vocabulary'
+import { examplesApi } from '../api/examples'
 
 export const useVocabularyStore = defineStore('vocabulary', () => {
   const words = ref<Vocabulary[]>([])
@@ -15,6 +16,8 @@ export const useVocabularyStore = defineStore('vocabulary', () => {
   const searchQuery = ref('')
   const sortBy = ref<'word' | 'addedAt' | 'masteryLevel' | 'nextReviewAt'>('addedAt')
   const sortOrder = ref<'asc' | 'desc'>('desc')
+  const exampleResults = ref<ExampleSearchResult[]>([])
+  const examplesLoading = ref(false)
 
   const filteredWords = computed(() => {
     if (!searchQuery.value) return words.value
@@ -123,6 +126,17 @@ export const useVocabularyStore = defineStore('vocabulary', () => {
     }
   }
 
+  async function searchExamples(keyword: string, difficulty?: CEFRLevel) {
+    examplesLoading.value = true
+    try {
+      exampleResults.value = await examplesApi.search({ keyword, difficulty })
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '搜索例句失败'
+    } finally {
+      examplesLoading.value = false
+    }
+  }
+
   async function deleteWord(id: string) {
     try {
       await vocabularyApi.delete(id)
@@ -138,6 +152,7 @@ export const useVocabularyStore = defineStore('vocabulary', () => {
     words.value = []
     reviewList.value = []
     currentWord.value = null
+    exampleResults.value = []
     total.value = 0
     currentPage.value = 1
     error.value = null
@@ -156,12 +171,15 @@ export const useVocabularyStore = defineStore('vocabulary', () => {
     searchQuery,
     sortBy,
     sortOrder,
+    exampleResults,
+    examplesLoading,
     filteredWords,
     reviewCount,
     fetchList,
     fetchReviewList,
     fetchById,
     search,
+    searchExamples,
     addWord,
     review,
     deleteWord,

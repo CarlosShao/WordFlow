@@ -128,19 +128,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
-import { articlesApi } from '../api'
+import { ref, watch, onMounted, computed } from 'vue'
+import { useContentStore } from '../stores/content'
 import { PageHeader, BaseModal, BaseButton, Skeleton, EmptyState, WordTooltip, ReadingTimer, TranslationToggle, PronunciationBtn } from '../components'
 import { useToast } from '../composables/useToast'
 import { debounce } from '../utils/debounce'
 import type { Article, CEFRLevel, ArticleSource } from '../types'
 
-const articles = ref<Article[]>([])
+const contentStore = useContentStore()
+const articles = computed(() => contentStore.articles)
 const selectedDifficulty = ref<CEFRLevel | null>(null)
 const selectedSource = ref<ArticleSource | null>(null)
 const showDetail = ref(false)
 const selectedArticle = ref<Article | null>(null)
-const loading = ref(true)
+const loading = computed(() => contentStore.loading)
 const toast = useToast()
 const tooltipVisible = ref(false)
 const tooltipX = ref(0)
@@ -162,18 +163,10 @@ const difficultyLevels = [
 const sources: ArticleSource[] = ['BBC', 'CNN', 'NYT', 'Reddit', 'X', 'Medium', 'TED', 'YouTube']
 
 async function fetchArticles() {
-  loading.value = true
-  try {
-    const result = await articlesApi.getList({
-      difficulty: selectedDifficulty.value || undefined,
-      source: selectedSource.value || undefined
-    })
-    articles.value = result.articles
-  } catch {
-    // handle error
-  } finally {
-    loading.value = false
-  }
+  await contentStore.fetchArticles({
+    difficulty: selectedDifficulty.value || undefined,
+    source: selectedSource.value || undefined
+  })
 }
 
 const debouncedFetch = debounce(fetchArticles, 300)

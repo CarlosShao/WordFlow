@@ -143,20 +143,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
-import { listeningApi } from '../api'
+import { ref, watch, onMounted, computed } from 'vue'
+import { useContentStore } from '../stores/content'
 import { PageHeader, AudioPlayer, Skeleton, EmptyState, DictationMode, TranscriptHighlight, PronunciationBtn } from '../components'
 import { useToast } from '../composables/useToast'
 import type { ListeningMaterial, CEFRLevel } from '../types'
 
-const materials = ref<ListeningMaterial[]>([])
+const contentStore = useContentStore()
+const materials = computed(() => contentStore.listeningMaterials)
 const selectedMaterial = ref<ListeningMaterial | null>(null)
 const selectedDifficulty = ref<CEFRLevel | null>(null)
 const playingId = ref<string | null>(null)
 const isPlaying = ref(false)
 const currentTime = ref(0)
 const currentSpeed = ref(1)
-const loading = ref(true)
+const loading = computed(() => contentStore.loading)
 const toast = useToast()
 const dictationMode = ref(false)
 const activeSentenceIndex = ref(-1)
@@ -171,16 +172,9 @@ const difficultyLevels = [
 ]
 
 async function fetchMaterials() {
-  loading.value = true
-  try {
-    materials.value = await listeningApi.getList({
-      difficulty: selectedDifficulty.value || undefined
-    })
-  } catch {
-    // handle error
-  } finally {
-    loading.value = false
-  }
+  await contentStore.fetchListeningMaterials({
+    difficulty: selectedDifficulty.value || undefined
+  })
 }
 
 watch(selectedDifficulty, fetchMaterials)

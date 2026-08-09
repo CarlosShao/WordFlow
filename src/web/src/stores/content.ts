@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { ContentItem, ContentType, ContentCategory, CEFRLevel } from '../types'
+import type { ContentItem, ContentType, ContentCategory, CEFRLevel, Article, ArticleSource, ListeningMaterial } from '../types'
 import { contentApi } from '../api/content'
+import { articlesApi } from '../api/articles'
+import { listeningApi } from '../api/listening'
 
 export const useContentStore = defineStore('content', () => {
   const items = ref<ContentItem[]>([])
@@ -13,6 +15,8 @@ export const useContentStore = defineStore('content', () => {
   const total = ref(0)
   const currentPage = ref(1)
   const pageSize = ref(12)
+  const articles = ref<Article[]>([])
+  const listeningMaterials = ref<ListeningMaterial[]>([])
 
   const hasMore = computed(() => items.value.length < total.value)
 
@@ -65,6 +69,41 @@ export const useContentStore = defineStore('content', () => {
     }
   }
 
+  async function fetchArticles(params?: {
+    difficulty?: CEFRLevel
+    source?: ArticleSource
+  }) {
+    loading.value = true
+    error.value = null
+    try {
+      const result = await articlesApi.getList({
+        difficulty: params?.difficulty,
+        source: params?.source,
+      })
+      articles.value = result.articles
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '加载文章失败'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function fetchListeningMaterials(params?: {
+    difficulty?: CEFRLevel
+  }) {
+    loading.value = true
+    error.value = null
+    try {
+      listeningMaterials.value = await listeningApi.getList({
+        difficulty: params?.difficulty,
+      })
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '加载听力素材失败'
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function fetchRecommendations(limit: number = 3) {
     try {
       recommendations.value = await contentApi.getRecommendations(limit)
@@ -96,6 +135,8 @@ export const useContentStore = defineStore('content', () => {
     items.value = []
     currentContent.value = null
     recommendations.value = []
+    articles.value = []
+    listeningMaterials.value = []
     total.value = 0
     currentPage.value = 1
     error.value = null
@@ -111,9 +152,13 @@ export const useContentStore = defineStore('content', () => {
     total,
     currentPage,
     pageSize,
+    articles,
+    listeningMaterials,
     hasMore,
     fetchList,
     fetchById,
+    fetchArticles,
+    fetchListeningMaterials,
     fetchRecommendations,
     favorite,
     unfavorite,
