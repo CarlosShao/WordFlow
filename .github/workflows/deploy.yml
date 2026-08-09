@@ -1,0 +1,152 @@
+# WordFlow - Production Deployment Pipeline
+#
+# Triggers: Push to main branch
+# Steps: Install -> Lint -> Test -> Build -> Deploy
+#
+# Required repository secrets:
+#   - SSH_PRIVATE_KEY: SSH key for server access
+#   - SSH_HOST: Server IP or hostname
+#   - SSH_USER: SSH username
+#   - DEPLOY_PATH: Absolute path to project on server
+
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ================================================================
+  # Job 1: Lint & Test
+  # ================================================================
+  test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            src/web/package-lock.json
+            src/server/package-lock.json
+
+      # --- Web Frontend ---
+      - name: Install web dependencies
+        working-directory: src/web
+        run: npm ci
+
+      - name: Lint web
+        working-directory: src/web
+        run: npm run lint --if-present
+
+      - name: Build web (verify compilation)
+        working-directory: src/web
+        run: npm run build
+
+      # --- Server ---
+      - name: Install server dependencies
+        working-directory: src/server
+        run: npm ci
+
+      - name: Run server tests
+        working-directory: src/server
+        run: npm test --if-present
+
+  # ================================================================
+  # Job 2: Build & Deploy
+  # ================================================================
+  deploy:
+    name: Build & Deploy
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          echo "Connecting to ${SSH_USER}@${SSH_HOST}..."
+
+          ssh ${SSH_USER}@${SSH_HOST} << 'REMOTE_SCRIPT'
+            set -euo pipefail
+
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
+
+            cd "$DEPLOY_PATH"
+
+            echo "==> Pulling latest code..."
+            git fetch origin main
+            git checkout main
+            git pull origin main
+
+            echo "==> Building and starting services..."
+            docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+
+            echo "==> Waiting for health checks..."
+            sleep 15
+
+            echo "==> Checking service status..."
+            docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml ps
+
+            echo "==> Running database migrations..."
+            docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml exec -T api \
+              npx prisma migrate deploy 2>/dev/null || echo "Migration skipped (no prisma migrate)."
+
+            echo "==> Deployment complete!"
+          REMOTE_SCRIPT
+
+      - name: Health Check
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          sleep 10
+
+          HEALTH_STATUS=$(ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "curl -s -o /dev/null -w '%{http_code}' http://localhost/health || echo '000'")
+
+          if [ "$HEALTH_STATUS" = "200" ]; then
+            echo "Health check passed (HTTP 200)."
+          else
+            echo "Health check failed (HTTP ${HEALTH_STATUS})."
+            echo "Checking logs..."
+            ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+              "cd ${{ secrets.DEPLOY_PATH }} && docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml logs --tail=50 api"
+            exit 1
+          fi
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "::error::Deployment failed! Check the logs above for details."
