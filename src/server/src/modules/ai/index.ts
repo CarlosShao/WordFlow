@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { getPrisma } from '../../common/prisma.js'
 import { logger } from '../../common/logger.js'
@@ -28,15 +28,48 @@ const generateQuestionSchema = z.object({
   questionType: z.enum(['MULTIPLE_CHOICE', 'FILL_BLANK', 'TRANSLATION', 'LISTENING']).optional(),
 })
 
-async function callLlm(messages: { role: string; content: string }[]): Promise<string> {
-  const response = await fetch(`${config.ai.apiBaseUrl}/chat/completions`, {
+const testConnectionSchema = z.object({
+  baseUrl: z.string().url().optional(),
+  apiKey: z.string().min(1).max(500).optional(),
+  model: z.string().min(1).max(100).optional(),
+})
+
+/**
+ * Extract custom AI config from request headers.
+ * Headers: x-custom-api-key, x-custom-base-url, x-custom-model
+ */
+function getCustomAiConfig(request: FastifyRequest): {
+  apiKey: string
+  apiBaseUrl: string
+  model: string
+} {
+  const customKey = request.headers['x-custom-api-key'] as string | undefined
+  const customBaseUrl = request.headers['x-custom-base-url'] as string | undefined
+  const customModel = request.headers['x-custom-model'] as string | undefined
+
+  return {
+    apiKey: customKey && customKey.trim().length > 0 ? customKey.trim() : config.ai.apiKey,
+    apiBaseUrl: customBaseUrl && customBaseUrl.trim().length > 0 ? customBaseUrl.trim() : config.ai.apiBaseUrl,
+    model: customModel && customModel.trim().length > 0 ? customModel.trim() : config.ai.model,
+  }
+}
+
+async function callLlm(
+  messages: { role: string; content: string }[],
+  customConfig?: { apiKey: string; apiBaseUrl: string; model: string }
+): Promise<string> {
+  const apiKey = customConfig?.apiKey || config.ai.apiKey
+  const apiBaseUrl = customConfig?.apiBaseUrl || config.ai.apiBaseUrl
+  const model = customConfig?.model || config.ai.model
+
+  const response = await fetch(`${apiBaseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.ai.apiKey}`,
+      'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: config.ai.model,
+      model,
       messages,
       temperature: 0.7,
       max_tokens: 1024,
@@ -58,6 +91,7 @@ export async function aiRoutes(app: FastifyInstance) {
   // 翻译
   app.post('/api/v1/ai/translate', { preHandler: [app.authenticate] }, async (request, reply) => {
     const { text, targetLang, sourceLang } = translateSchema.parse(request.body)
+    const customConfig = getCustomAiConfig(request)
 
     const systemPrompt = targetLang === 'zh'
       ? '你是专业英译中翻译。给出准确、自然的中文翻译。只返回翻译结果，不加任何解释。'
@@ -69,7 +103,7 @@ export async function aiRoutes(app: FastifyInstance) {
     const result = await callLlm([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
-    ])
+    ], customConfig)
 
     return reply.send({ success: true, data: { translation: result } })
   })
@@ -77,6 +111,7 @@ export async function aiRoutes(app: FastifyInstance) {
   // 词汇解释
   app.post('/api/v1/ai/explain', { preHandler: [app.authenticate] }, async (request, reply) => {
     const { word, context } = explainSchema.parse(request.body)
+    const customConfig = getCustomAiConfig(request)
 
     const systemPrompt = `你是英语词汇教师。请用中文解释单词，包括：
 1. 词性与音标
@@ -93,7 +128,7 @@ export async function aiRoutes(app: FastifyInstance) {
     const result = await callLlm([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
-    ])
+    ], customConfig)
 
     return reply.send({ success: true, data: { explanation: result } })
   })
@@ -101,13 +136,14 @@ export async function aiRoutes(app: FastifyInstance) {
   // AI 对话
   app.post('/api/v1/ai/chat', { preHandler: [app.authenticate] }, async (request, reply) => {
     const { messages } = chatSchema.parse(request.body)
+    const customConfig = getCustomAiConfig(request)
 
     const systemMessage = {
       role: 'system' as const,
       content: '你是 WordFlow 英语学习助手。帮助用户学英语、解释词汇、纠正语法、回答英语学习相关的问题。简洁、实用、鼓励用户。',
     }
 
-    const result = await callLlm([systemMessage, ...messages])
+    const result = await callLlm([systemMessage, ...messages], customConfig)
 
     return reply.send({
       success: true,
@@ -119,6 +155,7 @@ export async function aiRoutes(app: FastifyInstance) {
   app.post('/api/v1/ai/generate-question', { preHandler: [app.authenticate] }, async (request, reply) => {
     const userId = request.user!.id
     const { vocabularyIds, contentId, questionType } = generateQuestionSchema.parse(request.body)
+    const customConfig = getCustomAiConfig(request)
 
     let vocabData: { word: string; translation: string }[] = []
     if (vocabularyIds?.length) {
@@ -154,7 +191,7 @@ export async function aiRoutes(app: FastifyInstance) {
     const result = await callLlm([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
-    ])
+    ], customConfig)
 
     let question: unknown
     try {
@@ -167,5 +204,35 @@ export async function aiRoutes(app: FastifyInstance) {
     }
 
     return reply.send({ success: true, data: question, raw: question ? undefined : result })
+  })
+
+  // 测试 AI 连接
+  app.post('/api/v1/ai/test-connection', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = testConnectionSchema.parse(request.body ?? {})
+    const headerConfig = getCustomAiConfig(request)
+
+    // Body params take priority over headers, headers take priority over env defaults
+    const testConfig = {
+      apiKey: body.apiKey || headerConfig.apiKey,
+      apiBaseUrl: body.baseUrl || headerConfig.apiBaseUrl,
+      model: body.model || headerConfig.model,
+    }
+
+    // Validate key format
+    if (testConfig.apiKey.trim().length === 0) {
+      return reply.code(400).send({ success: false, error: { message: 'API Key 不能为空' } })
+    }
+
+    try {
+      const result = await callLlm([
+        { role: 'user', content: 'Reply with "ok" to confirm connectivity.' },
+      ], testConfig)
+
+      return reply.send({ success: true, data: { message: '连接成功', model: testConfig.model, reply: result } })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '连接测试失败'
+      logger.warn({ err, model: testConfig.model }, 'AI test connection failed')
+      return reply.code(502).send({ success: false, error: { message } })
+    }
   })
 }

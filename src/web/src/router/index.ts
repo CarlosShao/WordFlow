@@ -80,6 +80,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '设置', icon: 'settings', requiresAuth: true }
   },
   {
+    path: '/settings/api',
+    name: 'ApiConfig',
+    component: () => import('../views/Settings/ApiConfig.vue'),
+    meta: { title: 'AI API 配置', requiresAuth: true, hidden: true }
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     redirect: '/dashboard'
