@@ -16,6 +16,7 @@ import { practiceRoutes } from './modules/practice/index.js'
 import { mistakeRoutes } from './modules/mistakes/index.js'
 import { dashboardRoutes } from './modules/dashboard/index.js'
 import { aiRoutes } from './modules/ai/index.js'
+import { aiProcessingModule } from './modules/ai-processing/index.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -59,6 +60,7 @@ export async function buildApp() {
   await app.register(mistakeRoutes)
   await app.register(dashboardRoutes)
   await app.register(aiRoutes)
+  await app.register(aiProcessingModule)
 
   return app
 }

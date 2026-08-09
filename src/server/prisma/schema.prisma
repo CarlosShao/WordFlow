@@ -57,6 +57,7 @@ model Content {
   translation String?
   segments    Json?
   duration    Int?
+  processedAt DateTime? @map("processed_at")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -66,6 +67,7 @@ model Content {
   @@unique([source, sourceUrl])
   @@index([type, createdAt])
   @@index([source, createdAt])
+  @@index([processedAt])
   @@map("contents")
 }
 
