@@ -1,3 +1,8 @@
+/**
+ * @deprecated 此文件依赖同目录已废弃的 `crawler.ts`，功能已被独立模块
+ * `src/server/src/modules/crawler/` 取代。本文件未被 `content/index.ts` 注册，
+ * 属于遗留孤儿代码，请勿在新功能中引用。保留仅用于历史参考，后续可安全删除。
+ */
 import { z } from 'zod'
 import { getPrisma } from '../../common/prisma.js'
 import { logger } from '../../common/logger.js'

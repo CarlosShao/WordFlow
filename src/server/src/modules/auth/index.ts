@@ -92,13 +92,18 @@ export async function authRoutes(app: FastifyInstance) {
     const query = request.query as { code?: string; error?: string }
 
     if (query.error || !query.code) {
-      throw new AppError(ErrorType.AUTH, 'GitHub 授权被取消', 401)
+      const redirect = `${config.corsOrigin}/auth/callback?error=${encodeURIComponent(query.error ?? 'GitHub 授权被取消')}`
+      return reply.redirect(redirect)
     }
 
     const result = await handleGitHubCallback(query.code)
 
     logger.info({ userId: result.user.id }, 'User logged in via GitHub')
-    return reply.send({ success: true, data: result })
+
+    // Redirect back to frontend with tokens in query params
+    const frontendUrl = config.corsOrigin.replace(/\/$/, '')
+    const redirect = `${frontendUrl}/auth/callback?token=${encodeURIComponent(result.accessToken)}&refreshToken=${encodeURIComponent(result.refreshToken)}`
+    return reply.redirect(redirect)
   })
 }
 

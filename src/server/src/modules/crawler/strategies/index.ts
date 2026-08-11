@@ -5,6 +5,9 @@ import { webStrategy } from './web.js'
 import { puppeteerStrategy } from './puppeteer.js'
 import { youtubeStrategy } from './youtube.js'
 import { twitterStrategy } from './twitter.js'
+import { tedStrategy } from './ted.js'
+import { voaStrategy } from './voa.js'
+import { podcastStrategy } from './podcast.js'
 
 /**
  * Strategy registry — maps source type to its crawl implementation
@@ -15,6 +18,9 @@ const strategyMap: Record<CrawlerSourceType, CrawlStrategy> = {
   PUPPETEER: puppeteerStrategy,
   YOUTUBE: youtubeStrategy,
   TWITTER: twitterStrategy,
+  TED: tedStrategy,
+  VOA: voaStrategy,
+  PODCAST: podcastStrategy,
 }
 
 /**

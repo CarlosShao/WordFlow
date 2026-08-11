@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import { Prisma, QuestionType, Difficulty } from '@prisma/client'
 import { getPrisma } from '../../common/prisma.js'
 import { AppError } from '../../common/errors.js'
 import { logger } from '../../common/logger.js'
@@ -16,8 +17,46 @@ const reviewMistakeSchema = z.object({
   correct: z.boolean(),
 })
 
+const createMistakeSchema = z.object({
+  vocabularyId: z.string().optional(),
+  contentId: z.string().optional(),
+  questionId: z.string().optional(),
+  questionType: z.nativeEnum(QuestionType),
+  question: z.string().min(1),
+  correctAnswer: z.string().min(1),
+  userAnswer: z.string().optional(),
+  wrongAnswer: z.string().optional(),
+  explanation: z.string().optional(),
+  difficulty: z.nativeEnum(Difficulty).optional(),
+})
+
 export async function mistakeRoutes(app: FastifyInstance) {
   const prisma = getPrisma()
+
+  // 创建错题（手动添加）
+  app.post('/api/v1/mistakes', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const userId = request.user!.id
+    const body = createMistakeSchema.parse(request.body)
+
+    const data: Prisma.MistakeCreateInput = {
+      user: { connect: { id: userId } },
+      questionType: body.questionType,
+      question: body.question,
+      correctAnswer: body.correctAnswer,
+      userAnswer: body.userAnswer ?? null,
+      wrongAnswer: body.wrongAnswer ?? null,
+      explanation: body.explanation ?? null,
+      difficulty: body.difficulty ?? null,
+      reviewCount: 1,
+      lastWrongAt: new Date(),
+    }
+    if (body.vocabularyId) data.vocabulary = { connect: { id: body.vocabularyId } }
+    if (body.contentId) data.content = { connect: { id: body.contentId } }
+    if (body.questionId) data.questionId = body.questionId
+
+    const mistake = await prisma.mistake.create({ data })
+    return reply.code(201).send({ success: true, data: mistake })
+  })
 
   // 错题列表
   app.get('/api/v1/mistakes', { preHandler: [app.authenticate] }, async (request, reply) => {

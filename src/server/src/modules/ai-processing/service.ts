@@ -21,6 +21,23 @@ import type { ProcessingResult, BatchProcessingResult, ExtractedVocabulary } fro
 const SYSTEM_USER_ID = 'system'
 
 /**
+ * 确保公共词库所属的 system 用户存在（幂等）。
+ * Vocabulary.userId 是 NOT NULL 外键，必须存在真实 User 记录，否则写入会被外键约束拒绝。
+ */
+async function ensureSystemUser(): Promise<void> {
+  const prisma = getPrisma()
+  await prisma.user.upsert({
+    where: { id: SYSTEM_USER_ID },
+    update: {},
+    create: {
+      id: SYSTEM_USER_ID,
+      email: 'system@wordflow.local',
+      username: 'System',
+    },
+  })
+}
+
+/**
  * Get the text content from a Content record for LLM processing.
  * For ARTICLE: use summary (which stores the raw text in our schema).
  * For VIDEO/PODCAST: use summary (transcript placeholder).
@@ -140,6 +157,9 @@ async function writeVocabularyToPublicBank(
   const prisma = getPrisma()
   let written = 0
 
+  // 确保公共词库宿主（system 用户）存在，否则 Vocabulary.userId 外键会失败
+  await ensureSystemUser()
+
   for (const item of items) {
     try {
       // Check if word already exists in public bank
@@ -164,6 +184,7 @@ async function writeVocabularyToPublicBank(
           translation: item.translation,
           definition: item.definition,
           examples: item.examples ?? [],
+          contentId: contentId || null,
           easeFactor: 2.5,
           interval: 0,
           repetitions: 0,

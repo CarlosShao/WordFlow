@@ -89,20 +89,47 @@ export async function crawlerRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: result })
   })
 
-  // ---- Trigger crawl for all enabled sources ----
-  app.post('/api/v1/crawler/crawl-all', authHandler, async (_request, reply) => {
-    // Run crawl in background to avoid HTTP timeout
-    crawlAllEnabledSources()
-      .then((result) => {
-        logger.info({ totalInserted: result.totalInserted }, 'Background crawl-all completed')
-      })
-      .catch((err) => {
-        logger.error({ err }, 'Background crawl-all failed')
-      })
-
+  // ---- Get crawl status for a single source ----
+  // Returns last crawl result (backend is synchronous: no async job system).
+  app.get('/api/v1/crawler/sources/:id/status', authHandler, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const source = await getSourceById(id)
     return reply.send({
       success: true,
-      data: { message: '全量抓取任务已启动，将在后台执行' },
+      data: {
+        sourceId: source.id,
+        lastStatus: source.lastStatus ?? 'never',
+        lastError: source.lastError ?? null,
+        lastCrawledAt: source.lastCrawledAt ?? null,
+        // Synchronous crawl: no in-progress job, so status is either idle or done
+        state: 'idle',
+        progress: source.lastStatus ? 100 : 0,
+      },
+    })
+  })
+
+  // ---- Trigger crawl for all enabled sources ----
+  // Synchronous: wait for the whole crawl to finish and return a structured
+  // result so the frontend can show real feedback (inserted count / failures).
+  app.post('/api/v1/crawler/crawl-all', authHandler, async (_request, reply) => {
+    const result = await crawlAllEnabledSources()
+    logger.info(
+      { totalInserted: result.totalInserted, sourceCount: result.results.length },
+      'Crawl-all completed',
+    )
+    const failed = result.results.filter((r) => r.status === 'error')
+    return reply.send({
+      success: true,
+      data: {
+        totalInserted: result.totalInserted,
+        sourceCount: result.results.length,
+        failedCount: failed.length,
+        results: result.results,
+        message:
+          failed.length > 0
+            ? `爬取完成：新增 ${result.totalInserted} 条，${failed.length} 个来源失败`
+            : `爬取完成：成功新增 ${result.totalInserted} 条内容`,
+      },
     })
   })
 }

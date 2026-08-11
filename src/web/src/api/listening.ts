@@ -7,7 +7,8 @@ export const listeningApi = {
     tags?: string[]
   }): Promise<ListeningMaterial[]> {
     const data = await client.get('/api/v1/content', { params: { ...params, type: 'podcast' } as unknown as Record<string, string | number | boolean> })
-    return data as unknown as ListeningMaterial[]
+    const arr = Array.isArray(data) ? data : (data?.items ?? [])
+    return arr as unknown as ListeningMaterial[]
   },
 
   async getById(id: string): Promise<ListeningMaterial> {

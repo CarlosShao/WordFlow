@@ -1,14 +1,14 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { getPrisma } from '../../common/prisma.js'
-import { AppError } from '../../common/errors.ts'
+import { AppError } from '../../common/errors.js'
 import { logger } from '../../common/logger.js'
 
 const contentQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
   type: z.enum(['ARTICLE', 'VIDEO', 'PODCAST']).optional(),
-  difficulty: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']).optional(),
+  difficulty: z.enum(['BEGINNER', 'ELEMENTARY', 'INTERMEDIATE', 'UPPER_INTERMEDIATE', 'ADVANCED', 'PROFICIENT']).optional(),
   keyword: z.string().optional(),
 })
 
@@ -19,12 +19,7 @@ const createContentSchema = z.object({
   sourceUrl: z.string().url(),
   coverUrl: z.string().url().optional(),
   author: z.string().max(200).optional(),
-  difficulty: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
-  estimatedTime: z.number().int().positive().optional(),
-  mediaUrl: z.string().url().optional(),
-  mediaSize: z.number().int().positive().optional(),
-  mediaDuration: z.number().int().positive().optional(),
-  transcript: z.string().optional(),
+  difficulty: z.enum(['BEGINNER', 'ELEMENTARY', 'INTERMEDIATE', 'UPPER_INTERMEDIATE', 'ADVANCED', 'PROFICIENT']),
   publishedAt: z.coerce.date().optional(),
   summary: z.string().max(5000).optional(),
 })
@@ -79,7 +74,7 @@ export async function contentRoutes(app: FastifyInstance) {
       where: { id },
       include: {
         _count: {
-          select: { interactions: true },
+          select: { userInteractions: true },
         },
       },
     })

@@ -42,13 +42,14 @@ export const useContentStore = defineStore('content', () => {
         difficulty: params?.difficulty,
         search: params?.search,
       })
+      const resItems = res?.items ?? []
       if (params?.append) {
-        items.value = [...items.value, ...res.items]
+        items.value = [...items.value, ...resItems]
       } else {
-        items.value = res.items
+        items.value = resItems
       }
-      total.value = res.total
-      currentPage.value = res.page
+      total.value = res?.total ?? resItems.length
+      currentPage.value = res?.page ?? currentPage.value
     } catch (e) {
       error.value = e instanceof Error ? e.message : '加载内容失败'
     } finally {

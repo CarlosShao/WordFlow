@@ -24,8 +24,10 @@ export const mistakesApi = {
     return data as unknown as MistakeRecord
   },
 
-  async updateMastery(id: string, status: 'not-reviewed' | 'reviewing' | 'mastered'): Promise<MistakeRecord> {
-    const data = await client.patch(`/api/v1/mistakes/${id}`, { masteryStatus: status })
+  // 复习错题（后端：POST /api/v1/mistakes/:id/review，根据 correct 自动更新掌握度）
+  async updateMastery(id: string, status: 'not-reviewed' | 'reviewing' | 'mastered', correct?: boolean): Promise<MistakeRecord> {
+    const isCorrect = correct ?? (status === 'mastered' || status === 'reviewing')
+    const data = await client.post(`/api/v1/mistakes/${id}/review`, { correct: isCorrect })
     return data as unknown as MistakeRecord
   },
 

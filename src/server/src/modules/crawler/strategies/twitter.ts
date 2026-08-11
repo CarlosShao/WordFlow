@@ -8,7 +8,7 @@ import { config } from '../../../config/index.js'
  */
 export const twitterStrategy: CrawlStrategy = {
   async crawl(source: CrawlerSource): Promise<CrawlItem[]> {
-    const bearerToken = config.TWITTER_BEARER_TOKEN
+    const bearerToken = config.twitterBearerToken
     if (!bearerToken) {
       logger.warn('TWITTER_BEARER_TOKEN not configured, skipping Twitter crawl')
       return []

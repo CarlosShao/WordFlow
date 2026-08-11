@@ -27,9 +27,11 @@
 
     <!-- Main Content -->
     <main class="main-content">
-      <router-view v-slot="{ Component }">
+      <router-view v-slot="{ Component, route }">
         <Transition name="page" mode="out-in">
-          <component :is="Component" />
+          <div :key="route.path" v-if="Component">
+            <component :is="Component" />
+          </div>
         </Transition>
       </router-view>
     </main>

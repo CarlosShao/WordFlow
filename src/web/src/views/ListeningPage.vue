@@ -30,7 +30,9 @@
     <EmptyState
       v-else-if="materials.length === 0"
       title="暂无听力素材"
-      description="请选择其他难度等级或稍后再来"
+      description="稍后再来试试吧，或从「内容」页面添加音频资源"
+      action-text="去浏览内容"
+      @action="$router.push('/content')"
     />
 
     <!-- Material List -->

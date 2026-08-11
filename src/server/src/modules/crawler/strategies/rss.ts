@@ -23,9 +23,13 @@ interface RssEntry {
   title: string
   link: string
   description?: string
+  content?: string
   pubDate?: string
   author?: string
   itunesDuration?: string
+  enclosureUrl?: string
+  videoUrl?: string | null
+  mediaContentUrl?: string
 }
 
 /**
@@ -43,6 +47,9 @@ function parseRssXml(xml: string): RssEntry[] {
     const descMatch = block.match(
       /<(?:description|summary)[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/(?:description|summary)>/,
     )
+    const contentMatch = block.match(
+      /<(?:content:encoded|content)[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/(?:content:encoded|content)>/,
+    )
     const dateMatch = block.match(
       /<(?:pubDate|published|updated)[^>]*>([^<]+)<\/(?:pubDate|published|updated)>/,
     )
@@ -50,15 +57,34 @@ function parseRssXml(xml: string): RssEntry[] {
       /<(?:author|dc:creator)[^>]*>([^<]+)<\/(?:author|dc:creator)>/,
     )
     const durationMatch = block.match(/<itunes:duration>([^<]+)<\/itunes:duration>/)
+    // enclosure with audio or video URL
+    const enclosureAudioMatch = block.match(/<enclosure[^>]*type="audio[^"]*"[^>]*url="([^"]+)"/)
+    const enclosureVideoMatch = block.match(/<enclosure[^>]*type="video[^"]*"[^>]*url="([^"]+)"/)
+    const enclosureAnyMatch = block.match(/<enclosure[^>]*url="([^"]+)"/)
+    // media:content with audio/video type, or fallback to any media:content url
+    const mediaContentAudioMatch = block.match(/<media:content[^>]*type="audio[^"]*"[^>]*url="([^"]+)"/)
+    const mediaContentVideoMatch = block.match(/<media:content[^>]*type="video[^"]*"[^>]*url="([^"]+)"/)
+    const mediaContentAnyMatch = block.match(/<media:content[^>]*url="([^"]+)"/)
+    const mediaThumbnailMatch = block.match(/<media:thumbnail[^>]*url="([^"]+)"/)
 
     if (titleMatch?.[1] && linkMatch?.[1]) {
+      const audioUrl =
+        enclosureAudioMatch?.[1] || mediaContentAudioMatch?.[1] || enclosureAnyMatch?.[1] || null
+      const videoUrl =
+        enclosureVideoMatch?.[1] || mediaContentVideoMatch?.[1] || mediaContentAnyMatch?.[1] || null
+      const coverUrl = mediaThumbnailMatch?.[1]
+
       items.push({
         title: decodeHtmlEntities(titleMatch[1]),
         link: linkMatch[1].trim(),
         description: descMatch?.[1] ? decodeHtmlEntities(descMatch[1]) : undefined,
+        content: contentMatch?.[1] ? decodeHtmlEntities(contentMatch[1]) : undefined,
         pubDate: dateMatch?.[1]?.trim(),
         author: authorMatch?.[1]?.trim(),
         itunesDuration: durationMatch?.[1]?.trim(),
+        enclosureUrl: audioUrl,
+        videoUrl: videoUrl,
+        mediaContentUrl: coverUrl || undefined,
       })
     }
   }
@@ -98,9 +124,16 @@ export const rssStrategy: CrawlStrategy = {
       title: entry.title,
       sourceUrl: entry.link,
       summary: entry.description?.slice(0, 5000),
+      // Store the real article body (content:encoded) so detail page shows actual text
+      content: entry.content?.trim() || entry.description?.trim() || '',
       author: entry.author,
       publishedAt: entry.pubDate ? new Date(entry.pubDate) : undefined,
       duration: entry.itunesDuration ? parseDuration(entry.itunesDuration) : undefined,
+      // Podcast audio URL from <enclosure type="audio/*">
+      audioUrl: entry.enclosureUrl || null,
+      // Video URL (TED etc. enclosure type="video/mp4" or media:content type="video")
+      videoUrl: entry.videoUrl || null,
+      coverUrl: entry.mediaContentUrl || undefined,
     }))
   },
 }

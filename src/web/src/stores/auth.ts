@@ -2,9 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { UserProfile } from '../types'
 import { authApi } from '../api/auth'
-import { setTokens, clearTokens } from '../api/client'
+import { getAccessToken, setTokens, clearTokens } from '../api/client'
 
 const USER_KEY = 'wordflow-auth-user'
+
+function hasToken(): boolean {
+  return !!getAccessToken()
+}
 
 function loadUser(): UserProfile | null {
   const stored = localStorage.getItem(USER_KEY)
@@ -21,7 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  const isAuthenticated = computed(() => !!user.value)
+  const isAuthenticated = computed(() => hasToken())
   const initials = computed(() => {
     const name = user.value?.username || '?'
     return name.charAt(0).toUpperCase()
@@ -106,13 +110,16 @@ export const useAuthStore = defineStore('auth', () => {
   function handleOAuthCallback(accessToken: string, refreshToken?: string) {
     if (refreshToken) {
       setTokens(accessToken, refreshToken)
+    } else {
+      setTokens(accessToken, '')
     }
+    // Fetch profile in background to populate user info; auth state is token-based
     fetchProfile()
   }
 
-  // Initialize: fetch profile if user exists but tokens might be needed
+  // Initialize: fetch profile if a valid token exists
   function initialize() {
-    if (user.value) {
+    if (hasToken()) {
       fetchProfile()
     }
   }

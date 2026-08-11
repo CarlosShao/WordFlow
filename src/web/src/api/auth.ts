@@ -38,6 +38,6 @@ export const authApi = {
   },
 
   getGithubOAuthUrl(): string {
-    return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/v1/auth/github`
+    return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002'}/api/v1/auth/github`
   },
 }

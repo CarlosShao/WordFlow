@@ -1,4 +1,5 @@
 import type { CrawlerSource, ContentType, Difficulty } from '@prisma/client'
+import type { InputJsonValue } from '@prisma/client/runtime/library'
 
 // Re-export Prisma types for convenience
 export type { CrawlerSource, ContentType, Difficulty }
@@ -15,7 +16,13 @@ export interface CrawlItem {
   coverUrl?: string
   duration?: number
   translation?: string
-  segments?: unknown
+  segments?: InputJsonValue
+  /** Real body text / video description / podcast notes (stored as content) */
+  content?: string
+  /** Playable video URL (for VIDEO type) */
+  videoUrl?: string | null
+  /** Playable audio URL (for PODCAST type) */
+  audioUrl?: string | null
 }
 
 /**

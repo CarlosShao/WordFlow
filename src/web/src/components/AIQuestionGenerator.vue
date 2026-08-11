@@ -2,7 +2,7 @@
   <div class="ai-question-generator">
     <!-- Generate button -->
     <div v-if="!questions.length && !isLoading" class="generate-trigger">
-      <BaseButton variant="secondary" size="md" @click="generate">
+      <BaseButton variant="secondary" size="md" @click="generate" :disabled="!canGenerate">
         <svg class="sparkle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
         </svg>
@@ -142,10 +142,19 @@ import BaseButton from './BaseButton.vue'
 import BaseTag from './BaseTag.vue'
 import LoadingSpinner from './LoadingSpinner.vue'
 import { aiService } from '../services/aiService'
+import { contentApi } from '../api/content'
 import type { ContentItem, PracticeQuestion, PracticeType, CEFRLevel } from '../types'
 
+/**
+ * Props - 支持两种使用方式：
+ * 1. 传入完整 content 对象 (ContentItem)
+ * 2. 仅传入 contentId (string)，组件内部会 fetch 详情
+ */
 interface Props {
-  content: ContentItem
+  /** 完整内容对象（优先使用） */
+  content?: ContentItem
+  /** 内容 ID（当没有传 content 时使用） */
+  contentId?: string
   autoGenerate?: boolean
 }
 
@@ -163,11 +172,40 @@ const questions = ref<PracticeQuestion[]>([])
 const userAnswers = reactive<Record<string, string>>({})
 const showResults = reactive<Record<string, boolean>>({})
 
+// 内部缓存的内容数据
+const resolvedContent = ref<ContentItem | null>(null)
+
+// 是否可以生成
+const canGenerate = computed(() => {
+  return !!props.content || !!props.contentId || !!resolvedContent.value
+})
+
 onMounted(() => {
   if (props.autoGenerate) {
     generate()
   }
 })
+
+async function resolveContent(): Promise<ContentItem | null> {
+  // 优先用 prop
+  if (props.content) return props.content
+
+  // 用缓存
+  if (resolvedContent.value) return resolvedContent.value
+
+  // 用 contentId fetch
+  if (props.contentId) {
+    try {
+      const detail = await contentApi.getById(props.contentId)
+      resolvedContent.value = detail as unknown as ContentItem
+      return resolvedContent.value
+    } catch {
+      return null
+    }
+  }
+
+  return null
+}
 
 async function generate() {
   isLoading.value = true
@@ -178,13 +216,29 @@ async function generate() {
   Object.keys(userAnswers).forEach(k => delete userAnswers[k])
   Object.keys(showResults).forEach(k => delete showResults[k])
 
-  const contentText = props.content.segments?.map(s => s.content).join('\n') || props.content.summary
-
   try {
-    questions.value = await aiService.generateQuestions(contentText, props.content.difficulty, 5)
+    const item = await resolveContent()
+    if (!item) {
+      throw new Error('无法获取内容信息')
+    }
+
+    // 提取文本：优先用 content 字段，其次 summary，再次 segments
+    const contentText =
+      (item as any).content ||
+      item.segments?.map((s: any) => s.content).join('\n') ||
+      item.summary ||
+      ''
+
+    if (!contentText.trim()) {
+      throw new Error('该内容暂无可用文本，无法生成题目')
+    }
+
+    const difficulty = item.difficulty || 'B1'
+
+    questions.value = await aiService.generateQuestions(contentText, difficulty, 5)
     emit('questions-generated', questions.value)
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : '生成失败，请重试'
+  } catch (e: any) {
+    error.value = e.message || e?.response?.data?.error || '生成失败，请重试'
   }
 
   isLoading.value = false

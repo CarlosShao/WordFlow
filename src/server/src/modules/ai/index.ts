@@ -26,6 +26,9 @@ const generateQuestionSchema = z.object({
   vocabularyIds: z.array(z.string()).optional(),
   contentId: z.string().optional(),
   questionType: z.enum(['MULTIPLE_CHOICE', 'FILL_BLANK', 'TRANSLATION', 'LISTENING']).optional(),
+  /** 直接传入文本内容（优先级最高，无需查库） */
+  text: z.string().min(1).max(10000).optional(),
+  difficulty: z.string().max(10).optional(), // CEFR level
 })
 
 const testConnectionSchema = z.object({
@@ -69,10 +72,10 @@ async function callLlm(
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.7,
-      max_tokens: 1024,
+    model,
+    messages,
+    temperature: 0.7,
+    max_tokens: 4096,
     }),
   })
 
@@ -82,7 +85,11 @@ async function callLlm(
   }
 
   const data = await response.json() as { choices: { message: { content: string } }[] }
-  return data.choices[0]?.message?.content || ''
+  const content = data.choices?.[0]?.message?.content
+  if (!content || content.trim().length === 0) {
+    throw new Error('LLM 返回内容为空')
+  }
+  return content
 }
 
 export async function aiRoutes(app: FastifyInstance) {
@@ -154,56 +161,226 @@ export async function aiRoutes(app: FastifyInstance) {
   // 生成练习题
   app.post('/api/v1/ai/generate-question', { preHandler: [app.authenticate] }, async (request, reply) => {
     const userId = request.user!.id
-    const { vocabularyIds, contentId, questionType } = generateQuestionSchema.parse(request.body)
+    const { vocabularyIds, contentId, questionType, text: directText, difficulty } = generateQuestionSchema.parse(request.body)
     const customConfig = getCustomAiConfig(request)
 
-    let vocabData: { word: string; translation: string }[] = []
-    if (vocabularyIds?.length) {
-      const vocabs = await prisma.vocabulary.findMany({
-        where: { id: { in: vocabularyIds }, userId },
-        select: { word: true, translation: true },
+    let sourceText = ''
+    let sourceType: 'vocabulary' | 'content' | 'direct' = 'direct'
+
+    // 优先级：直接文本 > contentId > vocabularyIds
+    if (directText) {
+      sourceText = directText
+      sourceType = 'direct'
+    } else if (contentId) {
+      const contentItem = await prisma.content.findUnique({
+        where: { id: contentId },
+        select: { content: true, summary: true, title: true },
       })
-      vocabData = vocabs
-    } else {
+      if (!contentItem) {
+        return reply.code(404).send({ success: false, error: { message: '内容不存在' } })
+      }
+      sourceText = contentItem.content || contentItem.summary || ''
+      sourceType = 'content'
+      if (!sourceText.trim()) {
+        return reply.send({ success: true, data: null, message: '该内容暂无可用文本，无法生成题目' })
+      }
+    }
+
+    // 如果没有直接文本也没有内容，尝试用词汇
+    if (!sourceText && !vocabularyIds?.length) {
       const due = await prisma.vocabulary.findMany({
         where: { userId, nextReviewDate: { lte: new Date() } },
         select: { word: true, translation: true },
         take: 5,
       })
-      vocabData = due
+      if (due.length === 0) {
+        return reply.send({ success: true, data: null, message: '没有可用的词汇或内容来生成题目' })
+      }
+      sourceText = due.map(v => `${v.word} (${v.translation})`).join(', ')
+      sourceType = 'vocabulary'
+    } else if (!sourceText && vocabularyIds?.length) {
+      const vocabs = await prisma.vocabulary.findMany({
+        where: { id: { in: vocabularyIds }, userId },
+        select: { word: true, translation: true },
+      })
+      sourceText = vocabs.map(v => `${v.word} (${v.translation})`).join(', ')
+      sourceType = 'vocabulary'
     }
 
-    if (vocabData.length === 0) {
-      return reply.send({ success: true, data: null, message: '没有可用的词汇生成题目' })
-    }
+    const typeHint = questionType ? `题型：${questionType}` : '随机题型（选择题、填空题、判断题等）'
+    const diffHint = difficulty ? `\n目标难度：${difficulty}` : ''
 
-    const typeHint = questionType ? `题型：${questionType}` : '随机题型'
-    const systemPrompt = `你是英语出题老师。根据给定的词汇生成 1 道练习题。
+    let systemPrompt: string
+    let userPrompt: string
+
+    if (sourceType === 'content' || sourceType === 'direct') {
+      systemPrompt = `你是英语出题老师。根据给定的英语文章/内容生成 3-5 道练习题。
+要求：
+1. 只返回 JSON 数组格式：[{"id":"q1","type":"multiple-choice","question":"题目","options":["A选项","B选项","C选项","D选项"],"correctAnswer":"正确选项","difficulty":"B1","explanation":"中文解析"}]
+2. 题型可选：multiple-choice（选择题）、fill-blank（填空）、true-false（判断）、cloze（完形）
+3. 题目要实用、贴近真实场景，考察阅读理解、词汇、语法等
+4. 解析用中文
+5. difficulty 字段使用 CEFR 等级：A1/A2/B1/B2/C1/C2`
+
+      userPrompt = `${typeHint}${diffHint}
+请根据以下内容出题：
+---
+${sourceText.slice(0, 4000)}
+---`
+    } else {
+      // vocabulary mode
+      systemPrompt = `你是英语出题老师。根据给定的词汇生成 1 道练习题。
 要求：
 - 只返回 JSON 格式：{"type":"题型","stem":"题目","options":["A","B","C","D"],"correctAnswer":"正确答案","explanation":"解析"}
 - 题型可选：MULTIPLE_CHOICE（4 选项单选）、FILL_BLANK（填空）、TRANSLATION（翻译）
 - 题目要实用、贴近真实场景
 - 解析用中文`
 
-    const userPrompt = `${typeHint}
-词汇列表：${vocabData.map((v) => `${v.word} (${v.translation})`).join(', ')}`
-
-    const result = await callLlm([
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ], customConfig)
-
-    let question: unknown
-    try {
-      const jsonMatch = result.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        question = JSON.parse(jsonMatch[0])
-      }
-    } catch {
-      question = null
+      userPrompt = `${typeHint}
+词汇列表：${sourceText}`
     }
 
-    return reply.send({ success: true, data: question, raw: question ? undefined : result })
+    let result: string
+    try {
+      result = await callLlm([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ], customConfig)
+    } catch (err) {
+      logger.error({ err, endpoint: 'generate-question', sourceType }, 'LLM call failed')
+      return reply.code(502).send({ success: false, error: { type: 'UPSTREAM_ERROR', message: err instanceof Error ? err.message : 'LLM 调用失败' } })
+    }
+
+    let parsed: unknown
+    try {
+      // Try to extract JSON from LLM response (may be wrapped in markdown code fences)
+      let jsonStr = result.trim()
+      // Remove markdown code fences if present: ```json ... ``` or ``` ...
+      const fenceMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/)
+      if (fenceMatch) {
+        jsonStr = fenceMatch[1].trim()
+      }
+      // Try array first, then object
+      const arrMatch = jsonStr.match(/\[[\s\S]*\]/)
+      const objMatch = jsonStr.match(/\{[\s\S]*\}/)
+      const jsonMatch = arrMatch || objMatch
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0])
+      }
+    } catch {
+      parsed = null
+    }
+
+    return reply.send({ success: true, data: parsed, raw: parsed ? undefined : result })
+  })
+
+  // 生成周学习计划
+  app.post('/api/v1/ai/generate-weekly-plan', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { weakPoints, recentActivity, level } = z.object({
+      weakPoints: z.string().min(1).max(2000),
+      recentActivity: z.string().max(2000).optional().default(''),
+      level: z.string().max(20).optional().default('B2'),
+    }).parse(request.body)
+    const customConfig = getCustomAiConfig(request)
+
+    const systemPrompt = `你是英语学习规划师。根据用户薄弱环节和近期活动，生成一份 7 天英语学习计划。
+只返回 JSON 格式：{"days":[{"day":"周一","focus":"主题","tasks":["任务1","任务2"],"time":30}],"priorityRecommendations":["建议1"]}
+任务要具体、可执行，每天 1-3 个任务，预计时间以分钟计。用中文。`
+
+    const userPrompt = `用户水平：${level}
+薄弱环节：${weakPoints}
+近期活动：${recentActivity}`
+
+    let result: string
+    try {
+      result = await callLlm([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ], customConfig)
+    } catch (err) {
+      logger.error({ err, endpoint: 'generate-weekly-plan' }, 'LLM call failed')
+      return reply.code(502).send({ success: false, error: { type: 'UPSTREAM_ERROR', message: err instanceof Error ? err.message : 'LLM 调用失败' } })
+    }
+
+    let plan: unknown
+    try {
+      const jsonMatch = result.match(/\{[\s\S]*\}/)
+      plan = jsonMatch ? JSON.parse(jsonMatch[0]) : null
+    } catch {
+      plan = null
+    }
+
+    return reply.send({ success: true, data: plan, raw: plan ? undefined : result })
+  })
+
+  // 用给定词汇生成语境故事
+  app.post('/api/v1/ai/generate-vocabulary-story', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { words, level } = z.object({
+      words: z.array(z.string().min(1)).min(1).max(30),
+      level: z.string().max(20).optional().default('B2'),
+    }).parse(request.body)
+    const customConfig = getCustomAiConfig(request)
+
+    const wordList = words.join(', ')
+    const systemPrompt = `你是英语故事创作者。请用下面提供的单词创作一个自然、连贯的英文短故事（150-300 词），并在故事后给出中文翻译。
+只返回 JSON 格式：{"story":"英文故事","translation":"中文翻译"}。故事要生动、地道，让学习者能在语境中理解这些词。用 ${level} 难度。`
+
+    const userPrompt = `请包含以下单词：${wordList}`
+
+    let result: string
+    try {
+      result = await callLlm([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ], customConfig)
+    } catch (err) {
+      logger.error({ err, endpoint: 'generate-vocabulary-story' }, 'LLM call failed')
+      return reply.code(502).send({ success: false, error: { type: 'UPSTREAM_ERROR', message: err instanceof Error ? err.message : 'LLM 调用失败' } })
+    }
+
+    let story: unknown
+    try {
+      const jsonMatch = result.match(/\{[\s\S]*\}/)
+      story = jsonMatch ? JSON.parse(jsonMatch[0]) : null
+    } catch {
+      story = null
+    }
+
+    return reply.send({ success: true, data: story, raw: story ? undefined : result })
+  })
+
+  // 评估文本难度（CEFR 等级）
+  app.post('/api/v1/ai/assess-difficulty', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { text } = z.object({
+      text: z.string().min(1).max(5000),
+    }).parse(request.body)
+    const customConfig = getCustomAiConfig(request)
+
+    const systemPrompt = `你是英语语言学专家。评估给定文本的阅读难度，给出 CEFR 等级（A1/A2/B1/B2/C1/C2）。
+只返回 JSON 格式：{"level":"B2","confidence":0.85,"reasoning":"简短说明依据"}。confidence 为 0-1 的小数。`
+
+    const userPrompt = `请评估以下文本的难度：\n${text}`
+
+    let result: string
+    try {
+      result = await callLlm([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ], customConfig)
+    } catch (err) {
+      logger.error({ err, endpoint: 'assess-difficulty' }, 'LLM call failed')
+      return reply.code(502).send({ success: false, error: { type: 'UPSTREAM_ERROR', message: err instanceof Error ? err.message : 'LLM 调用失败' } })
+    }
+
+    let assessment: unknown
+    try {
+      const jsonMatch = result.match(/\{[\s\S]*\}/)
+      assessment = jsonMatch ? JSON.parse(jsonMatch[0]) : null
+    } catch {
+      assessment = null
+    }
+
+    return reply.send({ success: true, data: assessment, raw: assessment ? undefined : result })
   })
 
   // 测试 AI 连接

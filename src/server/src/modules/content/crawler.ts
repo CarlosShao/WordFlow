@@ -1,3 +1,8 @@
+/**
+ * @deprecated 此文件已被独立模块 `src/server/src/modules/crawler/` 取代。
+ * 内容抓取与网页抓取逻辑已迁移至 crawler 模块，本文件未被 `content/index.ts` 注册，
+ * 属于遗留孤儿代码，请勿在新功能中引用。保留仅用于历史参考，后续可安全删除。
+ */
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { z } from 'zod'
@@ -124,7 +129,7 @@ export async function scrapeWithPuppeteer(url: string): Promise<{
 }> {
   const { default: puppeteer } = await import('puppeteer')
   const browser = await puppeteer.launch({
-    headless: 'new',
+    headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   })
 

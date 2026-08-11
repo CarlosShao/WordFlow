@@ -55,6 +55,10 @@ model Content {
   coverUrl    String?  @map("cover_url")
   summary     String?
   translation String?
+  content     String?        // 原文正文
+  audioUrl    String? @map("audio_url")   // 音频URL
+  videoUrl    String? @map("video_url")   // 视频URL
+  tags        Json?          // 分类标签 JSON 数组
   segments    Json?
   duration    Int?
   viewCount   Int      @default(0) @map("view_count")
@@ -288,4 +292,7 @@ enum CrawlerSourceType {
   TWITTER
   WEB
   PUPPETEER
+  TED
+  VOA
+  PODCAST
 }

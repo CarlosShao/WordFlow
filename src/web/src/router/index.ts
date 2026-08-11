@@ -56,6 +56,18 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '例句库', icon: 'quote', requiresAuth: true }
   },
   {
+    path: '/listening',
+    name: 'Listening',
+    component: () => import('../views/ListeningPage.vue'),
+    meta: { title: '听力', icon: 'headphones', requiresAuth: true }
+  },
+  {
+    path: '/reading',
+    name: 'Reading',
+    component: () => import('../views/ReadingPage.vue'),
+    meta: { title: '阅读', icon: 'book-open', requiresAuth: true }
+  },
+  {
     path: '/practice',
     name: 'Practice',
     component: () => import('../views/PracticePage.vue'),

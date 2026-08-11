@@ -4,6 +4,20 @@ import { randomUUID } from 'node:crypto'
 import { getPrisma } from '../../common/prisma.js'
 import { AppError } from '../../common/errors.js'
 import { logger } from '../../common/logger.js'
+import { QuestionType } from '@prisma/client'
+import type { JsonValue } from '@prisma/client/runtime/library'
+
+// 客户端/历史接口使用的自定义题型字符串 → schema 的 QuestionType 枚举
+// 映射依据：FILL_BLANK(选词填空) 最贴近 CLOZE；MULTIPLE_CHOICE(词义选择)/TRANSLATION 归入 VOCABULARY；LISTENING 保留。
+const QUESTION_TYPE_MAP = {
+  MULTIPLE_CHOICE: QuestionType.VOCABULARY,
+  FILL_BLANK: QuestionType.CLOZE,
+  TRANSLATION: QuestionType.VOCABULARY,
+  LISTENING: QuestionType.LISTENING,
+  READING_COMPREHENSION: QuestionType.READING_COMPREHENSION,
+} as const
+
+type ClientQuestionType = keyof typeof QUESTION_TYPE_MAP
 
 const createPracticeSchema = z.object({
   title: z.string().max(200).optional(),
@@ -89,7 +103,9 @@ export async function practiceRoutes(app: FastifyInstance) {
     })
 
     // 生成题目（简化版：翻译选择题 + 填空）
-    const questions = generateQuestions(vocabs, body.questionTypes, body.questionCount)
+    // body.questionTypes 是自定义字符串，先映射到 schema 枚举，避免写库时 enum 校验失败
+    const mappedTypes = body.questionTypes?.map((t) => QUESTION_TYPE_MAP[t])
+    const questions = generateQuestions(vocabs, mappedTypes, body.questionCount)
 
     const session = await prisma.practiceSession.create({
       data: {
@@ -160,9 +176,11 @@ export async function practiceRoutes(app: FastifyInstance) {
         },
         update: { reviewCount: { increment: 1 }, lastWrongAt: new Date() },
         create: {
-          userId,
-          vocabularyId: question.vocabularyId,
-          contentId: question.contentId,
+          user: { connect: { id: userId } },
+          vocabulary: { connect: { id: question.vocabularyId } },
+          content: question.contentId ? { connect: { id: question.contentId } } : undefined,
+          questionType: question.type,
+          question: question.stem,
           wrongAnswer: answer,
           correctAnswer: question.correctAnswer,
           reviewCount: 1,
@@ -233,20 +251,21 @@ export async function practiceRoutes(app: FastifyInstance) {
  * 本地规则生成题目
  */
 function generateQuestions(
-  vocabs: { id: string; word: string; translation: string; examples: string[] }[],
-  types: string[] | undefined,
+  vocabs: { id: string; word: string; translation: string | null; examples: JsonValue | null }[],
+  types: QuestionType[] | undefined,
   count: number
 ): {
-  type: 'MULTIPLE_CHOICE' | 'FILL_BLANK' | 'TRANSLATION' | 'LISTENING'
+  type: QuestionType
   stem: string
   options: string[]
   correctAnswer: string
   explanation: string
   vocabularyId: string
 }[] {
-  const questionTypes = types?.length ? types : ['MULTIPLE_CHOICE', 'FILL_BLANK']
+  // 默认题型：词义选择(VOCABULARY) + 填空(CLOZE)
+  const questionTypes = types?.length ? types : [QuestionType.VOCABULARY, QuestionType.CLOZE]
   const questions: {
-    type: 'MULTIPLE_CHOICE' | 'FILL_BLANK' | 'TRANSLATION' | 'LISTENING'
+    type: QuestionType
     stem: string
     options: string[]
     correctAnswer: string
@@ -257,11 +276,13 @@ function generateQuestions(
   const shuffled = [...vocabs].sort(() => Math.random() - 0.5).slice(0, count)
 
   for (const vocab of shuffled) {
-    const qType = questionTypes[Math.floor(Math.random() * questionTypes.length)] as typeof questions[number]['type']
+    // translation 在 schema 中为 String?，做 null 兜底
+    const translation = vocab.translation ?? ''
+    const qType = questionTypes[Math.floor(Math.random() * questionTypes.length)]
 
     switch (qType) {
-      case 'MULTIPLE_CHOICE': {
-        // 选择题：中文词义 → 英文
+      case QuestionType.VOCABULARY: {
+        // 选择题：中文词义 → 英文（原 MULTIPLE_CHOICE）
         const wrongOptions = vocabs
           .filter((v) => v.id !== vocab.id)
           .sort(() => Math.random() - 0.5)
@@ -269,50 +290,64 @@ function generateQuestions(
           .map((v) => v.word)
         const options = [...wrongOptions, vocab.word].sort(() => Math.random() - 0.5)
         questions.push({
-          type: 'MULTIPLE_CHOICE',
-          stem: `"${vocab.translation}" 对应的英文单词是？`,
+          type: QuestionType.VOCABULARY,
+          stem: `"${translation}" 对应的英文单词是？`,
           options,
           correctAnswer: vocab.word,
-          explanation: `${vocab.word} = ${vocab.translation}`,
+          explanation: `${vocab.word} = ${translation}`,
           vocabularyId: vocab.id,
         })
         break
       }
-      case 'FILL_BLANK': {
-        const example = vocab.examples?.[0] || ''
+      case QuestionType.CLOZE: {
+        // 填空（原 FILL_BLANK）
+        const examples = (vocab.examples as string[] | null) ?? []
+        const example = (examples[0] as string) || ''
         const blanked = example.replace(new RegExp(vocab.word, 'gi'), '______')
         questions.push({
-          type: 'FILL_BLANK',
+          type: QuestionType.CLOZE,
           stem: `请填写空白处的单词：\n${blanked}`,
           options: [],
           correctAnswer: vocab.word,
-          explanation: `${vocab.word} = ${vocab.translation}`,
+          explanation: `${vocab.word} = ${translation}`,
           vocabularyId: vocab.id,
         })
         break
       }
-      case 'TRANSLATION': {
+      case QuestionType.LISTENING: {
+        // 听写（原 LISTENING）
         questions.push({
-          type: 'TRANSLATION',
-          stem: `请翻译为英文：${vocab.translation}`,
+          type: QuestionType.LISTENING,
+          stem: `请听写单词：${translation}`,
           options: [],
           correctAnswer: vocab.word,
-          explanation: `${vocab.word} = ${vocab.translation}`,
+          explanation: `${vocab.word} = ${translation}`,
           vocabularyId: vocab.id,
         })
         break
       }
-      case 'LISTENING': {
+      case QuestionType.READING_COMPREHENSION: {
+        // 阅读理解（保留）
         questions.push({
-          type: 'LISTENING',
-          stem: `请听写单词：${vocab.translation}`,
+          type: QuestionType.READING_COMPREHENSION,
+          stem: `根据「${translation}」推测其用法并作答`,
           options: [],
           correctAnswer: vocab.word,
-          explanation: `${vocab.word} = ${vocab.translation}`,
+          explanation: `${vocab.word} = ${translation}`,
           vocabularyId: vocab.id,
         })
         break
       }
+      default:
+        // GRAMMAR 等未实现的题型，回退为 VOCABULARY 选择
+        questions.push({
+          type: QuestionType.VOCABULARY,
+          stem: `"${translation}" 对应的英文单词是？`,
+          options: [vocab.word],
+          correctAnswer: vocab.word,
+          explanation: `${vocab.word} = ${translation}`,
+          vocabularyId: vocab.id,
+        })
     }
   }
 
@@ -323,19 +358,17 @@ function generateQuestions(
  * 判分
  */
 function gradeAnswer(
-  type: string,
+  type: QuestionType,
   userAnswer: string,
   correctAnswer: string
 ): boolean {
   const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
 
   switch (type) {
-    case 'MULTIPLE_CHOICE':
-      return normalize(userAnswer) === normalize(correctAnswer)
-    case 'FILL_BLANK':
-      return normalize(userAnswer) === normalize(correctAnswer)
-    case 'TRANSLATION':
-    case 'LISTENING':
+    case QuestionType.VOCABULARY:
+    case QuestionType.CLOZE:
+    case QuestionType.LISTENING:
+    case QuestionType.READING_COMPREHENSION:
       // 主观题：需要 AI 评分，这里先简单匹配（后续接入 LLM）
       return normalize(userAnswer) === normalize(correctAnswer)
     default:

@@ -42,23 +42,14 @@ export const usePracticeStore = defineStore('practice', () => {
     loading.value = true
     error.value = null
     try {
-      if (params.contentId) {
-        // Create a session from content
-        currentSession.value = await practiceApi.createSession({
-          type: params.type,
-          difficulty: params.difficulty,
-          contentId: params.contentId,
-          questionCount: params.limit ?? 10,
-        })
-        questions.value = currentSession.value.questions
-      } else {
-        // Standalone questions
-        questions.value = await practiceApi.getQuestions({
-          type: params.type,
-          difficulty: params.difficulty,
-          limit: params.limit ?? 10,
-        })
-      }
+      // 后端所有题目都挂在会话下，统一创建会话后取 questions
+      currentSession.value = await practiceApi.createSession({
+        type: params.type,
+        difficulty: params.difficulty,
+        contentId: params.contentId,
+        questionCount: params.limit ?? 10,
+      })
+      questions.value = currentSession.value.questions
       currentIndex.value = 0
       selectedAnswer.value = null
       showAnswer.value = false
@@ -80,14 +71,19 @@ export const usePracticeStore = defineStore('practice', () => {
     showAnswer.value = true
 
     try {
-      const result = currentSession.value
-        ? await practiceApi.submitAnswer(currentSession.value.id, currentQuestion.value.id, answerToSubmit)
-        : await practiceApi.submitAnswerDirect(currentQuestion.value.id, answerToSubmit)
-
-      if (result.correct) {
-        correctCount.value++
-        score.value += result.points
-        streakCount.value++
+      if (currentSession.value) {
+        const result = await practiceApi.submitAnswer(
+          currentSession.value.id,
+          currentQuestion.value.id,
+          answerToSubmit,
+        )
+        if (result.correct) {
+          correctCount.value++
+          score.value += result.points
+          streakCount.value++
+        } else {
+          streakCount.value = 0
+        }
       } else {
         streakCount.value = 0
       }

@@ -39,8 +39,9 @@ function addRefreshSubscriber(callback: (token: string) => void) {
 // ── Create Axios Instance ──────────────────────────────────────────────
 
 const client: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001',
-  timeout: 15000,
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002',
+  // Crawl-all may take a long time (many sources fetched sequentially).
+  timeout: 300000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -95,7 +96,7 @@ client.interceptors.response.use(
           }
 
           const res = await axios.post(
-            `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/v1/auth/refresh`,
+            `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002'}/api/v1/auth/refresh`,
             { refreshToken }
           )
 

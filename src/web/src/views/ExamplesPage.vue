@@ -115,9 +115,18 @@ function highlightText(text: string, highlight: string): string {
   return text.replace(regex, '<mark>$1</mark>')
 }
 
-function addToVocabulary(example: ExampleSearchResult) {
-  // TODO: Add to vocabulary
-  console.log('Add to vocabulary:', example.wordHighlight)
+async function addToVocabulary(example: ExampleSearchResult) {
+  const word = example.wordHighlight?.trim()
+  if (!word) {
+    toast.warning('无可收藏的单词')
+    return
+  }
+  const result = await vocabStore.addWord(word)
+  if (result.success) {
+    toast.success(`已收藏「${word}」`)
+  } else {
+    toast.error(result.error ?? '收藏失败')
+  }
 }
 </script>
 

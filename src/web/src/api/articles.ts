@@ -10,12 +10,13 @@ export const articlesApi = {
     tags?: string[]
   }): Promise<ArticleListResponse> {
     const data = await client.get('/api/v1/content', { params: { ...params, type: 'article' } as unknown as Record<string, string | number | boolean> })
-    const result = data as unknown as PaginatedResponse<Article>
+    const arr = Array.isArray(data) ? data : (data?.items ?? [])
+    const meta = Array.isArray(data) ? {} : (data?.meta ?? {})
     return {
-      articles: result.items,
-      total: result.total,
-      page: result.page,
-      pageSize: result.pageSize,
+      articles: arr,
+      total: meta.total ?? arr.length,
+      page: meta.page ?? 1,
+      pageSize: meta.limit ?? arr.length,
     }
   },
 

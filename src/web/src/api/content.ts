@@ -8,6 +8,15 @@ import type {
   PaginatedResponse,
 } from '../types'
 
+// Backend returns uppercase ContentType enum (VIDEO/PODCAST/ARTICLE);
+// frontend uses lowercase. Normalize at the API boundary so all pages compare consistently.
+function normalizeContent<T extends { type?: string }>(item: T): T {
+  if (item && typeof item.type === 'string') {
+    item.type = item.type.toLowerCase() as T['type']
+  }
+  return item
+}
+
 export const contentApi = {
   async getList(params?: {
     page?: number
@@ -19,24 +28,34 @@ export const contentApi = {
     search?: string
   }): Promise<PaginatedResponse<ContentItem>> {
     const data = await client.get('/api/v1/content', { params: params as Record<string, string | number | boolean> })
-    return data as unknown as PaginatedResponse<ContentItem>
+    // 后端返回 { data: ContentItem[], meta: { page, limit, total, totalPages } }
+    const arr = Array.isArray(data) ? data : (data?.items ?? [])
+    const meta = Array.isArray(data) ? {} : (data?.meta ?? {})
+    return {
+      items: arr.map((it: ContentItem) => normalizeContent(it)),
+      total: meta.total ?? arr.length,
+      page: meta.page ?? 1,
+      pageSize: meta.limit ?? arr.length,
+    } as PaginatedResponse<ContentItem>
   },
 
   async getById(id: string): Promise<ContentItem> {
     const data = await client.get(`/api/v1/content/${id}`)
-    return data as unknown as ContentItem
+    return normalizeContent(data as unknown as ContentItem)
   },
 
   async getRecommendations(limit: number = 3): Promise<ContentItem[]> {
-    const data = await client.get('/api/v1/content/recommendations', { params: { limit: String(limit) } })
-    return data as unknown as ContentItem[]
+    // 后端无独立推荐接口，复用列表接口取最新内容作为推荐位
+    const data = await this.getList({ page: 1, pageSize: limit })
+    return data.items ?? []
   },
 
   async favorite(id: string): Promise<void> {
-    await client.post(`/api/v1/content/${id}/favorite`)
+    await client.post(`/api/v1/content/${id}/favorite`, { favorite: true })
   },
 
   async unfavorite(id: string): Promise<void> {
-    await client.delete(`/api/v1/content/${id}/favorite`)
+    // 后端用同一接口 + favorite:false 控制取消收藏
+    await client.post(`/api/v1/content/${id}/favorite`, { favorite: false })
   },
 }

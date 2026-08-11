@@ -25,14 +25,17 @@ export const vocabularyApi = {
     return data as unknown as Vocabulary
   },
 
+  // 搜索词汇（后端：GET /api/v1/vocabulary?keyword=...，支持 word/translation 模糊匹配）
   async search(keyword: string): Promise<Vocabulary[]> {
-    const data = await client.get('/api/v1/vocabulary/search', { params: { q: keyword } })
-    return data as unknown as Vocabulary[]
+    const data = await client.get('/api/v1/vocabulary', { params: { keyword, limit: 50 } })
+    const resp = data as unknown as PaginatedResponse<Vocabulary>
+    return resp.items ?? []
   },
 
+  // 待复习词汇（后端：GET /api/v1/vocabulary/due）
   async getReviewList(): Promise<Vocabulary[]> {
-    const data = await client.get('/api/v1/vocabulary/review')
-    return data as unknown as Vocabulary[]
+    const data = await client.get('/api/v1/vocabulary/due')
+    return (data as unknown as Vocabulary[]) ?? []
   },
 
   async addWord(word: string, contentId?: string): Promise<Vocabulary> {

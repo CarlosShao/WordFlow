@@ -4,12 +4,14 @@
  * Content pipeline: extract vocabulary, generate summary, rate difficulty, write vocabulary.
  */
 
+import type { JsonValue } from '@prisma/client/runtime/library'
+
 export interface ExtractedVocabulary {
   word: string
-  phonetic?: string
-  translation: string
-  definition?: string
-  examples?: string[]
+  phonetic?: string | null
+  translation: string | null
+  definition?: string | null
+  examples?: JsonValue
 }
 
 export interface DifficultyRating {

@@ -63,6 +63,20 @@
         </SettingItem>
       </SettingsSection>
 
+      <!-- Profile -->
+      <SettingsSection title="个人资料">
+        <SettingItem title="头像" description="上传你的头像图片" full-width>
+          <div class="avatar-upload">
+            <img v-if="avatarUrl" :src="avatarUrl" alt="头像" class="avatar-preview" />
+            <span v-else class="avatar-placeholder">未设置</span>
+            <input ref="avatarInput" type="file" accept="image/*" hidden @change="handleAvatarUpload" />
+            <BaseButton variant="secondary" size="sm" @click="avatarInput?.click()">
+              选择图片
+            </BaseButton>
+          </div>
+        </SettingItem>
+      </SettingsSection>
+
       <!-- AI Settings -->
       <SettingsSection title="AI 智能助手">
         <SettingItem title="启用 AI 功能" description="开启后将使用 AI 生成题目、分析错误、提供个性化学习建议">
@@ -93,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watchEffect } from 'vue'
+import { ref, reactive, watchEffect, watch } from 'vue'
 import {
   PageHeader,
   SettingsSection,
@@ -107,11 +121,33 @@ import {
 import { useToast } from '../composables/useToast'
 import { useTheme } from '../composables/useTheme'
 import { configureAI } from '../api/ai'
+import { uploadApi } from '../api/upload'
 import type { ThemeStyle } from '../composables/useTheme'
 import type { CEFRLevel, ContentSource } from '../types'
 
 const toast = useToast()
+const avatarInput = ref<HTMLInputElement | null>(null)
+const avatarUrl = ref<string>('')
+
+async function handleAvatarUpload(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  try {
+    const result = await uploadApi.uploadFile(file, 'avatar')
+    avatarUrl.value = result.url
+    toast.success('头像上传成功')
+  } catch {
+    toast.error('头像上传失败，请稍后重试')
+  } finally {
+    target.value = ''
+  }
+}
+
 const { themeStyle, setTheme } = useTheme()
+
+const FONT_SIZE_KEY = 'wordflow-font-size'
+const savedFontSize = localStorage.getItem(FONT_SIZE_KEY) as 'sm' | 'md' | 'lg' | null
 
 const settings = reactive({
   dailyGoalMinutes: '30',
@@ -120,8 +156,19 @@ const settings = reactive({
   reminderTime: '09:00',
   difficultyPreference: ['B1', 'B2'] as CEFRLevel[],
   preferredSources: ['BBC', 'CNN', 'NYT'] as ContentSource[],
-  fontSize: 'md' as 'sm' | 'md' | 'lg'
+  fontSize: (savedFontSize || 'md') as 'sm' | 'md' | 'lg'
 })
+
+// Apply font size to DOM + persist
+function applyFontSize(size: 'sm' | 'md' | 'lg') {
+  document.documentElement.setAttribute('data-font-size', size)
+  localStorage.setItem(FONT_SIZE_KEY, size)
+}
+
+// Watch fontSize changes and apply immediately
+watch(() => settings.fontSize, (newSize) => {
+  applyFontSize(newSize)
+}, { immediate: true })
 
 const aiSettings = reactive({
   enabled: false,
@@ -172,32 +219,35 @@ function toggleSource(source: ContentSource) {
 }
 
 function saveSettings() {
+  // Persist font size (already applied via watch, but ensure it's saved)
+  applyFontSize(settings.fontSize)
+
   if (aiSettings.enabled && aiSettings.endpoint && aiSettings.apiKey) {
     configureAI({
       endpoint: aiSettings.endpoint,
       apiKey: aiSettings.apiKey,
       debug: true
     })
-    toast.success('AI 配置已保存，将使用真实 API')
+    toast.success('设置已保存')
   } else {
     configureAI({
       endpoint: '/api/ai',
       apiKey: ''
     })
-    if (aiSettings.enabled) {
-      toast.warning('AI 已启用但未配置完整，使用模拟模式')
-    } else {
-      toast.info('AI 已关闭，使用模拟模式')
-    }
+    toast.success('设置已保存')
   }
-
-  console.log('Settings saved:', { settings, aiSettings })
-  toast.success('设置已保存')
 }
 
 function resetSettings() {
-  console.log('Settings reset')
-  toast.info('设置已重置')
+  settings.fontSize = 'md'
+  settings.dailyGoalMinutes = '30'
+  settings.dailyGoalWords = '10'
+  settings.reminderEnabled = true
+  settings.reminderTime = '09:00'
+  settings.difficultyPreference = ['B1', 'B2']
+  settings.preferredSources = ['BBC', 'CNN', 'NYT']
+  applyFontSize('md')
+  toast.info('设置已重置为默认值')
 }
 </script>
 

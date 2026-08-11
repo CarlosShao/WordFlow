@@ -20,15 +20,18 @@
     "@fastify/multipart": "^9.4.0",
     "@fastify/swagger": "^9.0.0",
     "@fastify/swagger-ui": "^5.0.0",
-    "@prisma/client": "^6.0.0",
+    "@prisma/client": "^6.19.3",
     "bcryptjs": "^2.4.0",
+    "cheerio": "^1.2.0",
     "dotenv": "^16.4.0",
+    "esbuild": "^0.28.2",
     "fastify": "^5.0.0",
     "ioredis": "^5.4.0",
     "jsonwebtoken": "^9.0.0",
     "minio": "^8.0.0",
     "node-cron": "^3.0.3",
     "pino": "^9.0.0",
+    "puppeteer": "^23.11.1",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -38,9 +41,9 @@
     "@types/node-cron": "^3.0.11",
     "eslint": "^9.10.0",
     "pino-pretty": "^11.0.0",
-    "prisma": "^6.0.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.6.0",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.11",
+    "typescript": "^7.0.2",
     "vitest": "^2.1.0"
   }
 }

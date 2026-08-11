@@ -29,8 +29,8 @@ export interface AuthResponse {
 
 function signAccessToken(userId: string, email: string): string {
   return jwt.sign({ id: userId, email }, config.jwt.secret, {
-    expiresIn: config.jwt.accessTtl,
-  } satisfies jwt.SignOptions)
+    expiresIn: config.jwt.accessTtl as jwt.SignOptions['expiresIn'],
+  })
 }
 
 function toUserDTO(user: {
@@ -53,6 +53,10 @@ function generateRefreshToken(): string {
   return randomBytes(48).toString('hex')
 }
 
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 12)
+}
+
 export async function registerUser(email: string, pwd: any, username?: string): Promise<AuthResponse> {
   const prisma = getPrisma()
 
@@ -63,9 +67,13 @@ export async function registerUser(email: string, pwd: any, username?: string): 
 
   const hashedPassword = await bcrypt.hash(pwd, 12)
 
-  const data: Record<string, unknown> = { email, username: username ?? null }
-  data['password'] = hashedPassword
-  const user = await prisma.user.create({ data })
+  const user = await prisma.user.create({
+    data: {
+      email,
+      username: username ?? email.split('@')[0],
+      password: hashedPassword,
+    },
+  })
 
   const accessToken = signAccessToken(user.id, user.email)
   const refreshToken = await createRefreshToken(user.id)
@@ -96,7 +104,7 @@ export async function refreshTokens(token: string): Promise<TokenPair> {
   const prisma = getPrisma()
   const redis = getRedis()
 
-  const whitelisted = await redis.get(`whitelist:refresh:${token}`)
+  const whitelisted = await redis.get('whitelist:refresh:' + token)
   if (!whitelisted) {
     throw new AppError(ErrorType.AUTH, '无效的 refresh token', 401)
   }
@@ -110,9 +118,8 @@ export async function refreshTokens(token: string): Promise<TokenPair> {
     throw new AppError(ErrorType.AUTH, 'refresh token 已过期', 401)
   }
 
-  // Token rotation: delete old token from both PostgreSQL and Redis
   await prisma.refreshToken.delete({ where: { id: stored.id } })
-  await redis.del(`whitelist:refresh:${token}`)
+  await redis.del('whitelist:refresh:' + token)
 
   const accessToken = signAccessToken(stored.user.id, stored.user.email)
   const newRefreshToken = await createRefreshToken(stored.user.id)
@@ -125,7 +132,7 @@ export async function logoutUser(token: string): Promise<void> {
   const redis = getRedis()
 
   await prisma.refreshToken.deleteMany({ where: { token } })
-  await redis.del(`whitelist:refresh:${token}`)
+  await redis.del('whitelist:refresh:' + token)
 }
 
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token'
@@ -138,7 +145,7 @@ export async function getGitHubAuthUrl(): Promise<string> {
     redirect_uri: config.github.callbackUrl,
     scope: 'read:user user:email',
   })
-  return `https://github.com/login/oauth/authorize?${params.toString()}`
+  return 'https://github.com/login/oauth/authorize?' + params.toString()
 }
 
 export async function handleGitHubCallback(code: string): Promise<AuthResponse> {
@@ -167,7 +174,7 @@ export async function handleGitHubCallback(code: string): Promise<AuthResponse> 
 
   const userRes = await fetch(GITHUB_USER_URL, {
     headers: {
-      Authorization: `Bearer ${githubToken}`,
+      Authorization: 'Bearer ' + githubToken,
       Accept: 'application/json',
       'User-Agent': 'WordFlow',
     },
@@ -189,7 +196,7 @@ export async function handleGitHubCallback(code: string): Promise<AuthResponse> 
   if (!email) {
     const emailRes = await fetch(GITHUB_EMAIL_URL, {
       headers: {
-        Authorization: `Bearer ${githubToken}`,
+        Authorization: 'Bearer ' + githubToken,
         Accept: 'application/json',
         'User-Agent': 'WordFlow',
       },
@@ -210,26 +217,34 @@ export async function handleGitHubCallback(code: string): Promise<AuthResponse> 
 
   const githubId = String(githubUser.id)
 
-  let user = await prisma.user.findFirst({
+  const existingUser = await prisma.user.findFirst({
     where: { OR: [{ githubId }, { email }] },
   })
 
-  if (user) {
-    if (!user.githubId) {
+  let user: any
+  if (existingUser) {
+    if (!existingUser.githubId) {
       user = await prisma.user.update({
-        where: { id: user.id },
-        data: { githubId, avatarUrl: user.avatarUrl ?? githubUser.avatar_url ?? null },
+        where: { id: existingUser.id },
+        data: { githubId, avatarUrl: existingUser.avatarUrl ?? githubUser.avatar_url ?? null },
       })
+    } else {
+      user = existingUser
     }
   } else {
-    const createData: Record<string, unknown> = {
+    const randomPwd = randomBytes(32).toString('hex')
+    const hashedPassword = await hashPassword(randomPwd)
+
+    // build user data
+    const userData = {
       email,
       username: githubUser.name ?? githubUser.login,
       githubId,
       avatarUrl: githubUser.avatar_url ?? null,
+      password: hashedPassword
     }
-    createData['password'] = <REDACTED>
-    user = await prisma.user.create({ data: createData })
+
+    user = await prisma.user.create({ data: userData })
   }
 
   const accessToken = signAccessToken(user.id, user.email)
@@ -249,7 +264,7 @@ async function createRefreshToken(userId: string): Promise<string> {
     data: { token, userId, expiresAt },
   })
 
-  await redis.set(`whitelist:refresh:${token}`, userId, 'EX', 7 * 24 * 60 * 60)
+  await redis.set('whitelist:refresh:' + token, userId, 'EX', 7 * 24 * 60 * 60)
 
   return token
 }

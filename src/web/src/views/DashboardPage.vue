@@ -218,6 +218,7 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
 .chart-title {
@@ -260,6 +261,10 @@ onMounted(() => {
   font-size: 0.6875rem;
   color: var(--color-text-muted);
   margin-top: var(--space-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 /* Recommendations */

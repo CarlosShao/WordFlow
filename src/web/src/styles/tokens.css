@@ -4,6 +4,9 @@
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
+  /* ── Font Size Scale (base 16px) ──────────────────────────────── */
+  font-size: 16px;
+
   /* ── Colors: Brand ──────────────────────────────────────────── */
   --color-brand-50: #fafafa;
   --color-brand-100: #f4f4f5;
@@ -190,4 +193,15 @@
   --input-radius: var(--radius-md);
   --input-border-width: 1px;
   --input-focus-shadow: 0 0 0 1px var(--color-primary);
+}
+
+/* ── Font Size Scale (via data-font-size attribute) ─────────────── */
+html[data-font-size="sm"] {
+  font-size: 14px;
+}
+html[data-font-size="md"] {
+  font-size: 16px;
+}
+html[data-font-size="lg"] {
+  font-size: 18px;
 }

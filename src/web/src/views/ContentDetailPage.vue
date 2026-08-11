@@ -1,320 +1,212 @@
 <template>
-  <div class="content-detail-page">
-    <!-- Loading -->
-    <div v-if="contentStore.loading" class="detail-loading">
-      <Skeleton variant="text" :lines="8" />
-    </div>
+  <div class="detail-page">
+    <!-- Header -->
+    <header class="detail-header">
+      <button class="back-btn" @click="goBack">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
 
-    <!-- Not Found -->
-    <EmptyState
-      v-else-if="!content"
-      title="内容未找到"
-      description="该内容可能已被删除或不存在"
-      icon="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 2a10 10 0 100 20 10 10 0 000-20z"
-      action-text="返回内容列表"
-      @action="goBack"
-    />
+      <div class="header-info" v-if="contentDetail">
+        <h1 class="header-title">{{ contentDetail.title }}</h1>
 
-    <!-- Content -->
-    <template v-else>
-      <!-- Top Bar -->
-      <header class="top-bar">
-        <div class="top-bar-left">
-          <button class="back-btn" @click="goBack" title="返回">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M19 12H5" />
-              <polyline points="12 19 5 12 12 5" />
+        <div class="header-meta">
+          <span :class="['type-badge', `badge-${normalizedType}`]">
+            {{ getTypeLabel(normalizedType) }}
+          </span>
+          <span :class="['difficulty-badge', `diff-${contentDetail.difficulty}`]">
+            {{ getDifficultyLabel(contentDetail.difficulty) }}
+          </span>
+          <span v-if="contentDetail.source" class="source-badge">{{ contentDetail.source }}</span>
+          <a
+            v-if="contentDetail.sourceUrl"
+            :href="contentDetail.sourceUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="external-link"
+            title="查看原文"
+          >
+            查看原文
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
             </svg>
-          </button>
-          <h1 class="detail-title">{{ content.title }}</h1>
-        </div>
-        <div class="top-bar-right">
-          <span class="source-badge">{{ content.source }}</span>
-          <span :class="['difficulty-tag', `difficulty-${content.difficulty}`]">
-            {{ content.difficulty }}
-          </span>
-          <span :class="['type-badge', `badge-${content.type}`]">
-            {{ getTypeLabel(content.type) }}
-          </span>
-          <a v-if="content.sourceUrl" :href="content.sourceUrl" target="_blank" rel="noopener" class="source-link">
-            查看原文 ↗
           </a>
         </div>
-      </header>
-
-      <!-- ── Article View ──────────────────────────────────────── -->
-      <div v-if="content.type === 'article'" class="article-view">
-        <!-- Article Controls -->
-        <div class="article-controls">
-          <ReadingTimer :word-count="content.wordCount || 0" />
-          <TranslationToggle v-model="translationMode" />
-        </div>
-
-        <!-- Segments -->
-        <div class="segments-list">
-          <div v-for="segment in content.segments" :key="segment.id" class="segment-block">
-            <!-- Segment Header -->
-            <div v-if="segment.title" class="segment-header">
-              <h2 class="segment-title">{{ segment.title }}</h2>
-              <PronunciationBtn :text="segment.title" size="sm" />
-            </div>
-
-            <!-- English Content -->
-            <div class="segment-content">
-              <WordSelector @add-vocabulary="handleAddVocabulary" @word-selected="handleWordSelected">
-                <p class="segment-text">{{ segment.content }}</p>
-              </WordSelector>
-            </div>
-
-            <!-- Translation (bilingual or translated mode) -->
-            <div v-if="translationMode !== 'original' && segment.translation" class="segment-translation">
-              <p v-if="translationMode === 'bilingual'" class="translation-text bilingual">
-                {{ segment.translation }}
-              </p>
-              <p v-else-if="translationMode === 'translated'" class="translation-text translated">
-                {{ segment.translation }}
-              </p>
-            </div>
-
-            <!-- Segment Practice -->
-            <SegmentPractice
-              v-if="getSegmentPractice(segment.id).length > 0"
-              :questions="getSegmentPractice(segment.id)"
-            />
-          </div>
-        </div>
       </div>
 
-      <!-- ── Video View ────────────────────────────────────────── -->
-      <div v-else-if="content.type === 'video'" class="video-view">
-        <!-- Video Player -->
-        <VideoPlayer
-          :title="content.title"
-          :poster="content.coverImage"
-          :playing="isPlaying"
-          :current-time="currentTime"
-          :duration="content.duration || 0"
-          :current-speed="currentSpeed"
-          :subtitles="content.bilingualSubtitles"
-          :show-bilingual="showBilingual"
-          :has-subtitles="!!content.bilingualSubtitles?.length"
-          @toggle-play="togglePlay"
-          @skip-backward="skipBackward"
-          @skip-forward="skipForward"
-          @update:speed="(s: number) => currentSpeed = s"
-          @toggle-bilingual="showBilingual = !showBilingual"
-        />
-
-        <!-- Transcript / Segments -->
-        <div class="video-transcript">
-          <h3 class="section-label">文字记录</h3>
-          <div v-for="segment in content.segments" :key="segment.id" class="segment-block">
-            <div v-if="segment.startTime !== undefined" class="timestamp">
-              <button class="timestamp-btn" @click="seekToTime(segment.startTime!)">
-                {{ formatTime(segment.startTime) }}
-              </button>
-            </div>
-
-            <div class="segment-header" v-if="segment.title">
-              <h4 class="segment-title-sm">{{ segment.title }}</h4>
-            </div>
-
-            <div class="segment-content">
-              <WordSelector @add-vocabulary="handleAddVocabulary" @word-selected="handleWordSelected">
-                <p class="segment-text">{{ segment.content }}</p>
-              </WordSelector>
-            </div>
-
-            <div v-if="segment.translation" class="segment-translation">
-              <p class="translation-text bilingual">{{ segment.translation }}</p>
-            </div>
-
-            <SegmentPractice
-              v-if="getSegmentPractice(segment.id).length > 0"
-              :questions="getSegmentPractice(segment.id)"
-            />
-          </div>
-        </div>
+      <div v-if="loading && !contentDetail" class="skeleton-header">
+        <Skeleton variant="text" style="width: 60%; height: 28px;" />
+        <Skeleton variant="text" style="width: 30%; height: 16px; margin-top: 8px;" />
       </div>
+    </header>
 
-      <!-- ── Podcast View ──────────────────────────────────────── -->
-      <div v-else-if="content.type === 'podcast'" class="podcast-view">
-        <!-- Audio Player -->
-        <AudioPlayer
-          :playing="isPlaying"
-          :current-time="currentTime"
-          :duration="content.duration || 0"
-          :current-speed="currentSpeed"
-          @toggle-play="togglePlay"
-          @skip-backward="skipBackward"
-          @skip-forward="skipForward"
-          @update:speed="(s: number) => currentSpeed = s"
-        />
+    <!-- Error State -->
+    <div v-if="error" class="error-state">
+      <p>{{ error }}</p>
+      <button @click="fetchContent">重试</button>
+    </div>
 
-        <!-- Podcast Info -->
-        <div class="podcast-info">
-          <span v-if="content.speaker" class="speaker-name">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-            {{ content.speaker }}
-          </span>
-        </div>
-
-        <!-- Dictation Toggle -->
-        <div class="transcript-controls">
-          <h3 class="section-label">文字记录</h3>
-          <button
-            :class="['dictation-toggle', { active: dictationMode }]"
-            @click="dictationMode = !dictationMode"
+    <!-- Main Content -->
+    <main v-if="contentDetail" class="detail-main">
+      <!-- Video Player (for VIDEO type) -->
+      <section v-if="normalizedType === 'video' && contentDetail.videoUrl" class="media-section video-section">
+        <div class="video-wrapper">
+          <iframe
+            v-if="isEmbedUrl(contentDetail.videoUrl)"
+            :src="contentDetail.videoUrl"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen
+            class="video-embed"
+          ></iframe>
+          <video
+            v-else
+            controls
+            :src="contentDetail.videoUrl"
+            class="video-native"
+            preload="metadata"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              <line x1="12" y1="19" x2="12" y2="23" />
-              <line x1="8" y1="23" x2="16" y2="23" />
-            </svg>
-            {{ dictationMode ? '关闭精听' : '精听模式' }}
+            您的浏览器不支持视频播放
+          </video>
+        </div>
+      </section>
+
+      <!-- Audio Player (for PODCAST type) -->
+      <section v-if="normalizedType === 'podcast' && contentDetail.audioUrl" class="media-section audio-section">
+        <div class="audio-player">
+          <audio controls :src="contentDetail.audioUrl" preload="metadata" ref="audioRef">
+            您的浏览器不支持音频播放
+          </audio>
+        </div>
+      </section>
+
+      <!-- Summary -->
+      <section v-if="contentDetail.summary" class="summary-section">
+        <h2>摘要</h2>
+        <p>{{ contentDetail.summary }}</p>
+      </section>
+
+      <!-- Article / Transcript Content -->
+      <section v-if="contentDetail.content || contentDetail.summary" class="article-section">
+        <div class="article-tabs">
+          <button
+            :class="['tab-btn', { active: activeTab === 'original' }]"
+            @click="activeTab = 'original'"
+          >
+            原文
+          </button>
+          <button
+            v-if="contentDetail.translation"
+            :class="['tab-btn', { active: activeTab === 'translation' }]"
+            @click="activeTab = 'translation'"
+          >
+            翻译
+          </button>
+          <button
+            :class="['tab-btn', { active: activeTab === 'bilingual' }]"
+            @click="activeTab = 'bilingual'"
+          >
+            双语对照
           </button>
         </div>
 
-        <!-- Transcript Content -->
-        <div class="podcast-transcript">
-          <div v-for="segment in content.segments" :key="segment.id" class="segment-block">
-            <div class="segment-top-row">
-              <div v-if="segment.startTime !== undefined" class="timestamp">
-                <button class="timestamp-btn" @click="seekToTime(segment.startTime!)">
-                  {{ formatTime(segment.startTime) }}
-                </button>
-              </div>
-              <div v-if="segment.title" class="segment-header-inline">
-                <h4 class="segment-title-sm">{{ segment.title }}</h4>
-                <PronunciationBtn :text="segment.title" size="sm" />
-              </div>
+        <div class="article-body">
+          <!-- Original Text -->
+          <div v-show="activeTab === 'original'" class="tab-content original-text">
+            <div v-html="formatContent(contentDetail.content)"></div>
+          </div>
+
+          <!-- Translation -->
+          <div v-show="activeTab === 'translation'" class="tab-content translation-text">
+            <div v-if="isTranslationAdequate" v-html="formatTranslation(contentDetail.translation)"></div>
+            <div v-else class="translation-hint">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 16v-4M12 8h.01"/>
+              </svg>
+              <span>该内容的中文翻译尚不完整，仅显示摘要。完整翻译将在后续更新中补充。</span>
             </div>
+          </div>
 
-            <!-- Dictation Mode -->
-            <DictationMode
-              v-if="dictationMode"
-              :sentence="segment.content"
-            />
-
-            <!-- Normal Mode -->
-            <template v-else>
-              <div class="segment-content">
-                <WordSelector @add-vocabulary="handleAddVocabulary" @word-selected="handleWordSelected">
-                  <p class="segment-text">{{ segment.content }}</p>
-                </WordSelector>
-              </div>
-
-              <div v-if="segment.translation" class="segment-translation">
-                <p class="translation-text bilingual">{{ segment.translation }}</p>
+          <!-- Bilingual View -->
+          <div v-show="activeTab === 'bilingual'" class="tab-content bilingual-text">
+            <template v-if="getBilingualParagraphs().length > 0">
+              <div v-for="(para, idx) in getBilingualParagraphs()" :key="idx" class="bilingual-block">
+                <div class="bi-en">{{ para.en }}</div>
+                <div class="bi-zh">{{ para.zh || '（暂无对应翻译）' }}</div>
               </div>
             </template>
-
-            <SegmentPractice
-              v-if="getSegmentPractice(segment.id).length > 0"
-              :questions="getSegmentPractice(segment.id)"
-            />
+            <div v-else class="translation-hint">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 16v-4M12 8h.01"/>
+              </svg>
+              <span>双语对照需要完整的英文原文和中文翻译，当前数据不足。</span>
+            </div>
           </div>
         </div>
-      </div>
-
-      <!-- AI Practice Generator -->
-      <AIQuestionGenerator
-        v-if="content"
-        :content="content"
-        @questions-generated="(q: any) => aiQuestions = q"
-      />
-
-      <!-- ── Overall Practice ──────────────────────────────────── -->
-      <section v-if="allPracticeQuestions.length > 0" class="overall-practice">
-        <h3 class="section-label">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
-          综合练习
-        </h3>
-        <SegmentPractice :questions="allPracticeQuestions" />
       </section>
-    </template>
+
+      <!-- No Content Fallback -->
+      <section v-else class="no-content-section">
+        <div class="no-content-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+        </div>
+        <p>该内容暂无正文文本</p>
+        <a v-if="contentDetail?.sourceUrl" :href="contentDetail.sourceUrl" target="_blank" class="link-primary">
+          访问原始来源 →
+        </a>
+      </section>
+
+      <!-- AI Question Generator -->
+      <section class="ai-section">
+        <AIQuestionGenerator :content-id="route.params.id as string" />
+      </section>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  Skeleton,
-  EmptyState,
-  AudioPlayer,
-  VideoPlayer,
-  ReadingTimer,
-  TranslationToggle,
-  PronunciationBtn,
-  SegmentPractice,
-  WordSelector,
-  DictationMode,
-  AIQuestionGenerator
-} from '../components'
-import { useContentStore } from '../stores/content'
-import { useToast } from '../composables/useToast'
-import { useKeyboard } from '../composables/useKeyboard'
-import type { ContentItem, PracticeQuestion, ContentType } from '../types'
+import { Skeleton, AIQuestionGenerator } from '../components'
+import { contentApi } from '../api/content'
+import type { ContentType, CEFRLevel } from '../types'
 
 const route = useRoute()
 const router = useRouter()
-const toast = useToast()
-const contentStore = useContentStore()
 
-// ── State ──────────────────────────────────────────────────────────
-const content = ref<ContentItem | null>(null)
+const loading = ref(true)
+const error = ref('')
+const contentDetail = ref<any>(null)
+const audioRef = ref<HTMLAudioElement | null>(null)
+const activeTab = ref<'original' | 'translation' | 'bilingual'>('original')
 
-// Translation
-const translationMode = ref<'original' | 'bilingual' | 'translated'>('original')
-
-// Player state
-const isPlaying = ref(false)
-const currentTime = ref(0)
-const currentSpeed = ref(1)
-const showBilingual = ref(false)
-const dictationMode = ref(false)
-
-// AI Questions
-const aiQuestions = ref([])
-
-// ── Keyboard Shortcuts ─────────────────────────────────────────────
-useKeyboard({
-  Space: () => togglePlay(),
-  ArrowLeft: () => skipBackward(),
-  ArrowRight: () => skipForward(),
-  Escape: () => {},
-  Enter: () => {}
-})
-
-// ── Fetch Content ──────────────────────────────────────────────────
 async function fetchContent() {
-  const id = route.params.id as string
-  if (!id) {
-    contentStore.loading = false
-    return
-  }
+  if (!route.params.id) return
 
-  await contentStore.fetchById(id)
-  content.value = contentStore.currentContent
+  loading.value = true
+  error.value = ''
+
+  try {
+    const res = await contentApi.getById(route.params.id as string)
+    contentDetail.value = res
+  } catch (err: any) {
+    error.value = err.message || '加载内容失败'
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(fetchContent)
 
-// ── Computed ───────────────────────────────────────────────────────
-const allPracticeQuestions = computed<PracticeQuestion[]>(() => {
-  if (!content.value?.segmentPractice) return []
-  return content.value.segmentPractice.flatMap(group => group.questions)
-})
+watch(() => route.params.id, fetchContent)
 
-// ── Helper Functions ───────────────────────────────────────────────
 function goBack() {
   router.push('/content')
 }
@@ -325,427 +217,424 @@ function getTypeLabel(type: ContentType): string {
     video: '视频',
     podcast: '播客'
   }
-  return labels[type]
+  return labels[type] || type
 }
 
-function getSegmentPractice(segmentId: string): PracticeQuestion[] {
-  if (!content.value?.segmentPractice) return []
-  const group = content.value.segmentPractice.find(g => g.segmentId === segmentId)
-  return group?.questions || []
+function getDifficultyLabel(difficulty?: string): string {
+  if (!difficulty) return ''
+  const map: Record<string, string> = {
+    BEGINNER: 'A1 入门', ELEMENTARY: 'A2 基础',
+    INTERMEDIATE: 'B1 中级', UPPER_INTERMEDIATE: 'B2 中高级',
+    ADVANCED: 'C1 高级', PROFICIENT: 'C2 精通',
+  }
+  return map[difficulty] || difficulty
 }
 
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${mins}:${secs.toString().padStart(2, '0')}`
+function isEmbedUrl(url: string): boolean {
+  return url.includes('youtube.com/embed') || url.includes('player.vimeo')
 }
 
-// ── Player Controls ────────────────────────────────────────────────
-function togglePlay() {
-  isPlaying.value = !isPlaying.value
+function formatContent(text: string): string {
+  // Fallback to summary if content is empty
+  const raw = (text || contentDetail.value?.summary || '').trim()
+  if (!raw) return ''
+  // Convert plain text to HTML paragraphs
+  return raw
+    .split('\n\n')
+    .filter(p => p.trim())
+    .map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+    .join('')
 }
 
-function skipBackward() {
-  currentTime.value = Math.max(0, currentTime.value - 10)
+function formatTranslation(text: string): string {
+  // Translation is already paragraph-formatted; just convert to HTML
+  return text
+    .split('\n\n')
+    .filter(p => p.trim())
+    .map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+    .join('')
 }
 
-function skipForward() {
-  const maxDuration = content.value?.duration || 0
-  currentTime.value = Math.min(maxDuration, currentTime.value + 10)
-}
+/** Check if translation looks like a full translation (not just a one-line summary) */
+const isTranslationAdequate = computed(() => {
+  if (!contentDetail.value?.translation) return false
+  const t = contentDetail.value.translation.trim()
+  // Adequate if it has multiple sentences or is long enough to be a real translation
+  const sentenceCount = (t.match(/[。！？.!?]/g) || []).length
+  return sentenceCount >= 3 || t.length > 80
+})
 
-function seekToTime(time: number) {
-  currentTime.value = time
-  isPlaying.value = true
-}
+// Backend returns uppercase ContentType enum (VIDEO/PODCAST/ARTICLE),
+// frontend uses lowercase. Normalize here so templates can compare reliably.
+const normalizedType = computed(() => (contentDetail.value?.type || '').toLowerCase())
 
-// ── Word Interaction ───────────────────────────────────────────────
-function handleAddVocabulary(word: string) {
-  toast.success(`已将 "${word}" 加入生词本`)
-}
+function getBilingualParagraphs(): Array<{ en: string; zh: string }> {
+  if (!contentDetail.value?.content || !contentDetail.value?.translation) return []
 
-function handleWordSelected(_word: string) {
-  // Optional: track which words users look up
+  // Seed data format: both content and translation use \n as line separator within paragraphs,
+  // and \n\n between major sections. Split by \n first for line-by-line alignment.
+  const enLines = contentDetail.value.content.split(/\n+/).filter(l => l.trim())
+  const zhLines = contentDetail.value.translation.split(/\n+/).filter(l => l.trim())
+
+  const result: Array<{ en: string; zh: string }> = []
+  const maxLen = Math.max(enLines.length, zhLines.length)
+  for (let i = 0; i < maxLen; i++) {
+    result.push({
+      en: enLines[i]?.trim() || '',
+      zh: zhLines[i]?.trim() || ''
+    })
+  }
+  return result
 }
 </script>
 
 <style scoped>
-.content-detail-page {
-  padding: var(--space-6);
-  max-width: 900px;
+.detail-page {
+  max-width: 860px;
   margin: 0 auto;
+  padding: var(--space-6);
+  min-height: calc(100vh - 64px);
 }
 
-/* ── Loading ─────────────────────────────────────────────────── */
-.detail-loading {
-  padding: var(--space-8) 0;
-}
-
-/* ── Top Bar ─────────────────────────────────────────────────── */
-.top-bar {
+/* ── Header ─────────────────────────────────────────────────── */
+.detail-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
   gap: var(--space-4);
   margin-bottom: var(--space-6);
-  padding-bottom: var(--space-4);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.top-bar-left {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
 }
 
 .back-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-sm);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
-  color: var(--color-text-muted);
+  color: var(--color-text);
   cursor: pointer;
   transition: all 0.16s ease;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .back-btn:hover {
   background: var(--color-surface-muted);
-  color: var(--color-text);
   border-color: var(--color-border-strong);
 }
 
-.detail-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--color-text);
-  margin: 0;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-sans);
+.header-info {
+  flex: 1;
+  min-width: 0;
 }
 
-.top-bar-right {
+.header-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 var(--space-3);
+  line-height: 1.3;
+  font-family: var(--font-serif);
+}
+
+.header-meta {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
-.source-badge {
+.type-badge {
   display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  font-size: 0.6875rem;
+  padding: 2px 10px;
+  font-size: 0.75rem;
   font-weight: 700;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.02em;
+}
+.badge-article { background: var(--color-brand-subtle); color: var(--color-primary); }
+.badge-video { background: var(--color-danger-50); color: var(--color-danger-600); }
+.badge-podcast { background: var(--color-success-50); color: var(--color-success-600); }
+
+.difficulty-badge {
+  display: inline-flex;
+  padding: 2px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+}
+.diff-A1, .diff-A2 { background: var(--color-success-50); color: var(--color-success-700); }
+.diff-B1, .diff-B2 { background: var(--color-brand-subtle); color: var(--color-brand-700); }
+.diff-C1, .diff-C2 { background: var(--color-danger-50); color: var(--color-danger-600); }
+
+.source-badge {
+  font-size: 0.75rem;
   color: var(--color-text-muted);
   background: var(--color-surface-muted);
-  border: 1px solid var(--color-border);
+  padding: 2px 8px;
   border-radius: var(--radius-sm);
+}
+
+.external-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color 0.16s;
+}
+
+.external-link:hover {
+  color: var(--color-brand-700);
+  text-decoration: underline;
+}
+
+.skeleton-header {
+  flex: 1;
+  padding-top: 4px;
+}
+
+/* ── Error ──────────────────────────────────────────────────── */
+.error-state {
+  text-align: center;
+  padding: var(--space-8) 0;
+  color: var(--color-danger-600);
+}
+
+.error-state button {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+/* ── Media Sections ─────────────────────────────────────────── */
+.media-section {
+  margin-bottom: var(--space-6);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.video-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+
+.video-embed,
+.video-native {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.audio-section {
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-border);
+  padding: var(--space-4);
+}
+
+.audio-player {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.audio-player audio {
+  width: 100%;
+  height: 44px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Summary ────────────────────────────────────────────────── */
+.summary-section {
+  margin-bottom: var(--space-6);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.summary-section h2 {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin: 0 0 var(--space-2);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
-.difficulty-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  border-radius: var(--radius-sm);
-}
-
-.difficulty-A1 { background: var(--color-success-50); color: var(--color-success-700); }
-.difficulty-A2 { background: var(--color-success-50); color: var(--color-success-600); }
-.difficulty-B1 { background: #fef3c7; color: #d97706; }
-.difficulty-B2 { background: #fef3c7; color: #b45309; }
-.difficulty-C1 { background: var(--color-danger-50); color: var(--color-danger-600); }
-.difficulty-C2 { background: var(--color-danger-50); color: var(--color-danger-700); }
-
-.type-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  border-radius: var(--radius-sm);
-  color: #ffffff;
-}
-
-.badge-article { background: rgba(99, 102, 241, 0.9); }
-.badge-video { background: rgba(239, 68, 68, 0.9); }
-.badge-podcast { background: rgba(59, 130, 246, 0.9); }
-
-/* ── Article View ────────────────────────────────────────────── */
-.article-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-6);
-  flex-wrap: wrap;
-}
-
-/* ── Segments ────────────────────────────────────────────────── */
-.segments-list,
-.video-transcript,
-.podcast-transcript {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-}
-
-.segment-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.segment-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.segment-title {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--color-text);
-  margin: 0;
-  font-family: var(--font-sans);
-}
-
-.segment-title-sm {
+.summary-section p {
   font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--color-text);
+  line-height: 1.7;
+  color: var(--color-text-muted);
   margin: 0;
+}
+
+/* ── Article Section ───────────────────────────────────────── */
+.article-section {
+  margin-bottom: var(--space-6);
+}
+
+.article-tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+  border-bottom: 2px solid var(--color-border);
+  padding-bottom: 0;
+}
+
+.tab-btn {
+  padding: var(--space-2) var(--space-4);
+  font-size: 0.875rem;
+  font-weight: 500;
   font-family: var(--font-sans);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: all 0.16s ease;
 }
 
-.segment-content {
-  position: relative;
+.tab-btn:hover {
+  color: var(--color-text);
 }
 
-.segment-text {
-  font-size: 1rem;
+.tab-btn.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  font-weight: 600;
+}
+
+.article-body {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.tab-content {
+  padding: var(--space-6);
+}
+
+.original-text {
+  font-size: 1.05rem;
   line-height: 1.85;
   color: var(--color-text);
-  margin: 0;
-  font-family: var(--font-sans);
 }
 
-.source-link {
-  font-size: 0.8125rem;
-  color: var(--color-primary);
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
+.original-text :deep(p) {
+  margin: 0 0 var(--space-4);
 }
 
-.source-link:hover {
-  text-decoration: underline;
-}
-
-/* ── Translation ─────────────────────────────────────────────── */
-.segment-translation {
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-surface-muted);
-  border-left: 3px solid var(--color-border);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+.original-text :deep(p:last-child) {
+  margin-bottom: 0;
 }
 
 .translation-text {
+  font-size: 1rem;
+  line-height: 1.8;
+  color: var(--color-text-muted);
+}
+
+.translation-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.translation-hint svg {
+  flex-shrink: 0;
+  color: var(--color-brand-subtle);
+}
+
+.bilingual-text {
+  padding: 0;
+}
+
+.bilingual-block {
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.bilingual-block:last-child {
+  border-bottom: none;
+}
+
+.bi-en {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--color-text);
+  margin-bottom: var(--space-2);
+}
+
+.bi-zh {
   font-size: 0.9375rem;
   line-height: 1.7;
-  margin: 0;
-  font-family: var(--font-sans);
+  color: var(--color-text-muted);
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--color-border);
 }
 
-.translation-text.bilingual {
+/* ── No Content ─────────────────────────────────────────────── */
+.no-content-section {
+  text-align: center;
+  padding: var(--space-8);
   color: var(--color-text-muted);
 }
 
-.translation-text.translated {
-  color: var(--color-text);
+.no-content-icon {
+  opacity: 0.3;
+  margin-bottom: var(--space-3);
 }
 
-/* ── Video View ──────────────────────────────────────────────── */
-.video-view {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-}
-
-/* ── Podcast View ────────────────────────────────────────────── */
-.podcast-view {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.podcast-info {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.speaker-name {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-}
-
-.speaker-name svg {
-  flex-shrink: 0;
-}
-
-.transcript-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.dictation-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-3);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  font-family: var(--font-sans);
-  color: var(--color-text-muted);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-
-.dictation-toggle:hover {
-  background: var(--color-surface-muted);
-  color: var(--color-text);
-}
-
-.dictation-toggle.active {
-  background: var(--color-primary);
-  color: var(--color-primary-foreground);
-  border-color: var(--color-primary);
-}
-
-/* ── Timestamps ──────────────────────────────────────────────── */
-.segment-top-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.segment-header-inline {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.timestamp {
-  flex-shrink: 0;
-}
-
-.timestamp-btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  font-family: var(--font-mono);
+.link-primary {
+  display: inline-block;
+  margin-top: var(--space-3);
   color: var(--color-primary);
-  background: var(--color-surface-muted);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 0.16s ease;
+  text-decoration: none;
+  font-weight: 500;
 }
 
-.timestamp-btn:hover {
-  background: var(--color-primary);
-  color: var(--color-primary-foreground);
-  border-color: var(--color-primary);
+.link-primary:hover {
+  text-decoration: underline;
 }
 
-/* ── Section Label ───────────────────────────────────────────── */
-.section-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--color-text);
-  margin: 0 0 var(--space-3);
-  font-family: var(--font-sans);
+/* ── AI Section ─────────────────────────────────────────────── */
+.ai-section {
+  margin-top: var(--space-6);
 }
 
-.section-label svg {
-  flex-shrink: 0;
-}
-
-/* ── Overall Practice ────────────────────────────────────────── */
-.overall-practice {
-  margin-top: var(--space-8);
-  padding-top: var(--space-6);
-  border-top: 2px solid var(--color-border);
-}
-
-/* ── Responsive ──────────────────────────────────────────────── */
+/* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .content-detail-page {
+  .detail-page {
     padding: var(--space-4);
   }
 
-  .top-bar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-3);
+  .header-title {
+    font-size: 1.25rem;
   }
 
-  .top-bar-left {
-    width: 100%;
+  .tab-content {
+    padding: var(--space-4);
   }
 
-  .detail-title {
-    font-size: 1.125rem;
-    white-space: normal;
-  }
-
-  .top-bar-right {
-    flex-wrap: wrap;
-  }
-
-  .article-controls {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-@media (max-width: 480px) {
-  .back-btn {
-    width: 32px;
-    height: 32px;
-  }
-
-  .back-btn svg {
-    width: 16px;
-    height: 16px;
+  .original-text {
+    font-size: 1rem;
   }
 }
 </style>
