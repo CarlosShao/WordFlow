@@ -3,12 +3,20 @@ import { logger } from '../../common/logger.js'
 /**
  * A single aligned paragraph: English source + optional Chinese translation.
  * Stored as `segments` JSON on the Content row.
+ *
+ * `start` / `end` are timestamps in milliseconds from the source subtitle track.
+ * They are used by the frontend to sync the transcript with video/audio playback.
+ * For article content (non-timed), both fields are undefined.
  */
 export interface CleanSegment {
   /** English (source) text of this paragraph/sentence. */
   en: string
   /** Chinese translation, filled by the translator when missing. */
   zh?: string
+  /** Start timestamp in ms (for video/audio segments only). */
+  start?: number
+  /** End timestamp in ms (for video/audio segments only). */
+  end?: number
 }
 
 /**
@@ -156,12 +164,12 @@ export function alignSubtitles(enRaw: string, zhRaw?: string): CleanSegment[] {
 
   const zhCues = zhRaw ? parseSubtitles(zhRaw) : []
   if (zhCues.length === 0) {
-    return enCues.map((c) => ({ en: c.text }))
+    return enCues.map((c) => ({ en: c.text, start: c.start, end: c.end }))
   }
 
   if (enCues.length === zhCues.length) {
     logger.info({ cues: enCues.length }, 'cleaner: subtitles aligned by index')
-    return enCues.map((c, i) => ({ en: c.text, zh: zhCues[i].text }))
+    return enCues.map((c, i) => ({ en: c.text, zh: zhCues[i].text, start: c.start, end: c.end }))
   }
 
   logger.warn(
@@ -178,7 +186,7 @@ export function alignSubtitles(enRaw: string, zhRaw?: string): CleanSegment[] {
         best = z
       }
     }
-    return best ? { en: c.text, zh: best.text } : { en: c.text }
+    return best ? { en: c.text, zh: best.text, start: c.start, end: c.end } : { en: c.text, start: c.start, end: c.end }
   })
 }
 

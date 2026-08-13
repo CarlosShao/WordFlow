@@ -1,0 +1,16 @@
+node_modules
+dist
+.env
+.env.*
+.git
+.gitignore
+*.md
+Dockerfile
+deploy
+desktop
+shared
+.idea
+.vscode
+test-debug
+tests
+*.log

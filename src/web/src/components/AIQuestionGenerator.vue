@@ -222,10 +222,11 @@ async function generate() {
       throw new Error('无法获取内容信息')
     }
 
-    // 提取文本：优先用 content 字段，其次 summary，再次 segments
+    // 提取文本：优先用 content 字段，其次 segments 的 en 文本，再次 summary
+    const segmentsText = item.segments?.map((s: any) => s.en || s.content || '').filter(Boolean).join('\n')
     const contentText =
       (item as any).content ||
-      item.segments?.map((s: any) => s.content).join('\n') ||
+      segmentsText ||
       item.summary ||
       ''
 

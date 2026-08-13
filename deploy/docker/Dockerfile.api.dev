@@ -1,0 +1,30 @@
+# WordFlow Backend API - Development Environment
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install system dependencies for media processing
+RUN apk add --no-cache \
+    ffmpeg \
+    yt-dlp \
+    ca-certificates
+
+# Copy package files and install dependencies
+COPY src/server/package.json src/server/package-lock.json* ./
+RUN npm install
+
+# Prisma generate
+COPY src/server/prisma ./prisma
+RUN npx prisma generate
+
+# Copy source code (will be overridden by volume mount in dev)
+COPY src/server/src ./src
+COPY src/server/tsconfig.json ./
+
+# Create .env placeholder (actual env passed via docker-compose)
+RUN touch .env
+
+EXPOSE 3002
+
+# Dev mode: tsx watch for hot reload
+CMD ["npm", "run", "dev"]

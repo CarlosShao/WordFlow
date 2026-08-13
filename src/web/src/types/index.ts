@@ -31,17 +31,21 @@ export interface ContentItem {
   id: string
   type: ContentType
   title: string
-  summary: string
+  summary?: string
   source: ContentSource
   sourceUrl: string
   difficulty: CEFRLevel
-  category: ContentCategory
-  tags: string[]
+  category?: ContentCategory
+  tags?: string[]
   coverImage?: string
-  publishedAt: string
-  vocabularyCount: number
+  publishedAt?: string
+  vocabularyCount?: number
 
-  // Article-specific
+  // Main text (HTML or plain)
+  content?: string
+  translation?: string
+
+  // Article/video/podcast segments
   segments?: ContentSegment[]
 
   // Video-specific
@@ -60,14 +64,10 @@ export interface ContentItem {
 }
 
 export interface ContentSegment {
-  id: string
-  index: number
-  title?: string
-  content: string
-  translation?: string
-  startTime?: number
-  endTime?: number
-  highlights?: string[]
+  en: string
+  zh?: string
+  start?: number
+  end?: number
 }
 
 export interface SubtitleLine {

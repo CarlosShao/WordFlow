@@ -73,12 +73,18 @@ WordFlow/
 │   ├── server/       # Fastify backend
 │   │   ├── src/
 │   │   │   ├── modules/      # Feature modules
-│   │   │   │   ├── auth/
-│   │   │   │   ├── content/
-│   │   │   │   ├── crawler/
-│   │   │   │   ├── ai/
-│   │   │   │   ├── vocabulary/
-│   │   │   ├── common/       # Shared utilities
+│   │   │   │   ├── auth/         # 注册/登录/刷新/登出/GitHub OAuth
+│   │   │   │   ├── content/      # 语料内容 CRUD
+│   │   │   │   ├── crawler/      # 爬虫（strategies/ + translator + scheduler）
+│   │   │   │   ├── ai/           # AI 配置/连线测试
+│   │   │   │   ├── ai-processing/# AI 处理流水线（词汇提取、题目生成）
+│   │   │   │   ├── vocabulary/   # 词汇库
+│   │   │   │   ├── practice/     # 练习会话/题目/提交
+│   │   │   │   ├── mistakes/     # 错题本
+│   │   │   │   ├── dashboard/    # 学习统计
+│   │   │   │   └── upload/       # 文件上传(MinIO)
+│   │   │   ├── common/       # Shared utilities (errors/logger/minio/prisma/redis)
+│   │   │   ├── config/       # Config (index.ts)
 │   │   │   └── main.ts       # Entry point
 │   │   └── package.json
 │   └── desktop/      # Tauri desktop (full-featured)
@@ -143,9 +149,10 @@ WordFlow/
 - Dead letter: log + manual review
 
 ### 4.9 Crawler Architecture
-- Plugin pattern: `interface SourcePlugin { fetch(), parse(), getMeta() }`
-- Adapters: cheerio (static), Puppeteer (dynamic), RSS
-- Dedup: URL hash + content hash
+- Strategy pattern: `interface CrawlStrategy { crawl(source): Promise<CrawlItem[]> }`（见 `src/server/src/modules/crawler/strategies/`）
+- Strategies: RSS, TED, VOA, YouTube, Podcast, Web, Puppeteer, Twitter
+- Dedup: `@@unique([source, sourceUrl])`
+- Translation: 批量 LLM 翻译（`translator.ts`），双语 `segments`（en/zh）
 - Rate limit: per-source configurable
 
 ---
@@ -262,7 +269,8 @@ consume:
 ```env
 # Server
 NODE_ENV=development
-PORT=3000
+# 开发环境端口 3002（Docker 启动）；生产 3001
+PORT=3002
 API_VERSION=v1
 
 # Database
@@ -284,7 +292,7 @@ JWT_SECRET=
 JWT_REFRESH_SECRET=
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
-GITHUB_CALLBACK_URL=http://localhost:3000/api/v1/auth/github/callback
+GITHUB_CALLBACK_URL=http://localhost:3002/api/v1/auth/github/callback
 
 # AI
 AI_API_BASE_URL=https://api.deepseek.com/v1
@@ -292,23 +300,23 @@ AI_API_KEY=
 AI_MODEL=deepseek-chat
 
 # Frontend
-VITE_API_BASE_URL=http://localhost:3000/api/v1
+VITE_API_BASE_URL=http://localhost:3002/api/v1
 ```
 
 ---
 
 ## 8. Docker Compose Services
 
-| Service | Port | Depends On |
-|---------|------|------------|
-| backend | 3000 | db, redis, minio |
-| db (PostgreSQL) | 5432 | - |
-| redis | 6379 | - |
-| minio | 9000 | - |
-| nginx | 80, 443 | backend |
-| adminer | 8080 | db |
+| Service | Container | Port | Depends On |
+|---------|-----------|------|------------|
+| api（后端） | `wordflow-api` | 3002 | postgres, redis, minio |
+| postgres (PostgreSQL 16) | `wordflow-postgres` | 5432 | - |
+| redis (Redis 7) | `wordflow-redis` | 6379 | - |
+| minio | `wordflow-minio` | 9000/9001 | - |
 
-Data volumes: `.docker/volumes/` (gitignored)
+> 无 nginx / adminer 服务。后端必须在 Docker 中启动（dev 环境，端口 3002，热更新）。
+
+Data volumes: named volumes（postgres_data / redis_data / minio_data / wordflow_node_modules）
 
 ---
 
@@ -394,7 +402,7 @@ if (!item) {
 
 | Problem | Solution |
 |---------|----------|
-| Port already in use | `lsof -i :3000` then kill |
+| Port already in use | `lsof -i :3002` then kill |
 | DB connection failed | Check `DATABASE_URL`, ensure db container healthy |
 | Prisma client out of sync | `npx prisma generate` |
 | Migration failed | `npx prisma migrate resolve` |
@@ -403,4 +411,4 @@ if (!item) {
 
 ---
 
-*Last updated: 2026-08-07*
+*Last updated: 2026-08-11*

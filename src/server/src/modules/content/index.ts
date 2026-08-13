@@ -10,6 +10,7 @@ const contentQuerySchema = z.object({
   type: z.enum(['ARTICLE', 'VIDEO', 'PODCAST']).optional(),
   difficulty: z.enum(['BEGINNER', 'ELEMENTARY', 'INTERMEDIATE', 'UPPER_INTERMEDIATE', 'ADVANCED', 'PROFICIENT']).optional(),
   keyword: z.string().optional(),
+  mix: z.coerce.boolean().optional(),
 })
 
 const createContentSchema = z.object({
@@ -32,7 +33,7 @@ export async function contentRoutes(app: FastifyInstance) {
   // 获取内容列表（公开）
   app.get('/api/v1/content', async (request, reply) => {
     const query = contentQuerySchema.parse(request.query)
-    const { page, limit, type, difficulty, keyword } = query
+    const { page, limit, type, difficulty, keyword, mix } = query
 
     const where: Record<string, unknown> = {
       ...(type && { type }),
@@ -43,6 +44,50 @@ export async function contentRoutes(app: FastifyInstance) {
           { summary: { contains: keyword, mode: 'insensitive' as const } },
         ],
       }),
+    }
+
+    // Mixed mode: return balanced results from each type
+    if (mix && !type) {
+      const perType = Math.max(1, Math.ceil(limit / 3))
+      const [articles, videos, podcasts] = await Promise.all([
+        prisma.content.findMany({
+          where: { ...where, type: 'ARTICLE' },
+          orderBy: { publishedAt: 'desc' },
+          take: perType,
+        }),
+        prisma.content.findMany({
+          where: { ...where, type: 'VIDEO' },
+          orderBy: { publishedAt: 'desc' },
+          take: perType,
+        }),
+        prisma.content.findMany({
+          where: { ...where, type: 'PODCAST' },
+          orderBy: { publishedAt: 'desc' },
+          take: perType,
+        }),
+      ])
+
+      // Interleave results: article, video, podcast, article, video, podcast...
+      const mixed: typeof articles = []
+      const maxLen = Math.max(articles.length, videos.length, podcasts.length)
+      for (let i = 0; i < maxLen; i++) {
+        if (articles[i]) mixed.push(articles[i])
+        if (videos[i]) mixed.push(videos[i])
+        if (podcasts[i]) mixed.push(podcasts[i])
+      }
+
+      const total = await prisma.content.count({ where })
+
+      return reply.send({
+        success: true,
+        data: mixed.slice(0, limit),
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      })
     }
 
     const [items, total] = await Promise.all([

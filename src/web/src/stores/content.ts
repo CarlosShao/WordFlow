@@ -28,6 +28,7 @@ export const useContentStore = defineStore('content', () => {
     difficulty?: CEFRLevel
     search?: string
     append?: boolean
+    mix?: boolean
   }) {
     loading.value = true
     error.value = null
@@ -41,6 +42,7 @@ export const useContentStore = defineStore('content', () => {
         category: params?.category,
         difficulty: params?.difficulty,
         search: params?.search,
+        mix: params?.mix,
       })
       const resItems = res?.items ?? []
       if (params?.append) {

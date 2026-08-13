@@ -10,9 +10,14 @@ import type {
 
 // Backend returns uppercase ContentType enum (VIDEO/PODCAST/ARTICLE);
 // frontend uses lowercase. Normalize at the API boundary so all pages compare consistently.
-function normalizeContent<T extends { type?: string }>(item: T): T {
+function normalizeContent<T extends { type?: string; coverUrl?: string }>(item: T): T {
   if (item && typeof item.type === 'string') {
     item.type = item.type.toLowerCase() as T['type']
+  }
+  // Map backend coverUrl to frontend coverImage
+  if (item && 'coverUrl' in item) {
+    (item as any).coverImage = item.coverUrl
+    delete item.coverUrl
   }
   return item
 }
@@ -26,8 +31,16 @@ export const contentApi = {
     category?: ContentCategory
     difficulty?: CEFRLevel
     search?: string
+    mix?: boolean
   }): Promise<PaginatedResponse<ContentItem>> {
-    const data = await client.get('/api/v1/content', { params: params as Record<string, string | number | boolean> })
+    const data = await client.get('/api/v1/content', {
+      params: {
+        ...params,
+        // Backend expects uppercase ContentType enum (VIDEO/PODCAST/ARTICLE)
+        type: params?.type ? params.type.toUpperCase() : undefined,
+        mix: params?.mix,
+      } as Record<string, string | number | boolean>,
+    })
     // 后端返回 { data: ContentItem[], meta: { page, limit, total, totalPages } }
     const arr = Array.isArray(data) ? data : (data?.items ?? [])
     const meta = Array.isArray(data) ? {} : (data?.meta ?? {})
@@ -44,9 +57,9 @@ export const contentApi = {
     return normalizeContent(data as unknown as ContentItem)
   },
 
-  async getRecommendations(limit: number = 3): Promise<ContentItem[]> {
-    // 后端无独立推荐接口，复用列表接口取最新内容作为推荐位
-    const data = await this.getList({ page: 1, pageSize: limit })
+  async getRecommendations(limit: number = 6): Promise<ContentItem[]> {
+    // 后端无独立推荐接口，复用列表接口取混合类型内容作为推荐位
+    const data = await this.getList({ page: 1, pageSize: limit, mix: true })
     return data.items ?? []
   },
 

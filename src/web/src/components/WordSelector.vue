@@ -1,5 +1,5 @@
 <template>
-  <div class="word-selector" @mouseup="handleSelect">
+  <div class="word-selector" ref="rootRef" @mouseup="handleSelect">
     <slot />
     <Teleport to="body">
       <Transition name="popover">
@@ -19,17 +19,45 @@
               <span class="word-popover__word">{{ currentWord }}</span>
               <PronunciationBtn v-if="dictEntry" :text="currentWord" size="sm" />
             </div>
-            <span v-if="dictEntry?.phonetic" class="word-popover__phonetic">{{ dictEntry.phonetic }}</span>
+            <span v-if="dictEntry?.phonetic?.uk || dictEntry?.phonetic?.us" class="word-popover__phonetic">
+              {{ dictEntry?.phonetic?.uk ? `英 [${dictEntry.phonetic.uk}]` : '' }}{{ dictEntry?.phonetic?.uk && dictEntry?.phonetic?.us ? ' ' : '' }}{{ dictEntry?.phonetic?.us ? `美 [${dictEntry.phonetic.us}]` : '' }}
+            </span>
           </div>
 
           <!-- Body: definitions -->
-          <div v-if="dictEntry" class="word-popover__body">
-            <span v-if="dictEntry.pos" class="word-popover__pos">{{ dictEntry.pos }}</span>
-            <p class="word-popover__def-en">{{ dictEntry.en }}</p>
-            <p class="word-popover__def-cn">{{ dictEntry.cn }}</p>
+          <div v-if="dictLoading" class="word-popover__body">
+            <p class="word-popover__loading">查询中…</p>
+          </div>
+          <div v-else-if="dictEntry" class="word-popover__body">
+            <!-- 中文释义 -->
+            <div v-if="dictEntry.translations.length" class="word-popover__translations">
+              <div v-for="(t, i) in dictEntry.translations" :key="i" class="word-popover__trow">
+                <span v-if="t.pos" class="word-popover__pos">{{ t.pos }}</span>
+                <span class="word-popover__cn">{{ t.cn }}</span>
+              </div>
+            </div>
+            <!-- 英文释义 -->
+            <div v-if="dictEntry.definitions.length" class="word-popover__defs">
+              <div v-for="(d, i) in dictEntry.definitions.slice(0, 2)" :key="'d' + i" class="word-popover__def">
+                <span v-if="d.pos" class="word-popover__pos">{{ d.pos }}</span>
+                <span class="word-popover__def-en">{{ d.en }}</span>
+              </div>
+            </div>
+            <!-- 双语例句 -->
+            <div v-if="dictEntry.examples.length" class="word-popover__examples">
+              <div v-for="(e, i) in dictEntry.examples.slice(0, 2)" :key="'e' + i" class="word-popover__example">
+                <p class="word-popover__example-en">{{ e.en }}</p>
+                <p v-if="e.cn" class="word-popover__example-cn">{{ e.cn }}</p>
+              </div>
+            </div>
+            <!-- 同义词 -->
+            <div v-if="dictEntry.synonyms.length" class="word-popover__synonyms">
+              <span class="word-popover__syn-label">同义词</span>
+              <span v-for="(s, i) in dictEntry.synonyms.slice(0, 5)" :key="'s' + i" class="word-popover__syn-tag">{{ s }}</span>
+            </div>
           </div>
           <div v-else class="word-popover__body">
-            <p class="word-popover__empty">该词未收录</p>
+            <p class="word-popover__empty">{{ dictError ? '查询失败' : '该词未收录' }}</p>
             <p class="word-popover__empty-hint">可尝试在词典中手动查询 "{{ currentWord }}"</p>
           </div>
 
@@ -73,10 +101,15 @@ import PronunciationBtn from './PronunciationBtn.vue'
 /* ------------------------------------------------------------------ */
 
 interface DictEntry {
-  phonetic: string
-  pos: string
-  en: string
-  cn: string
+  word: string
+  phonetic: { us?: string; uk?: string; usAudio?: string; ukAudio?: string }
+  translations: { pos: string; cn: string }[]
+  definitions: { pos: string; en: string; synonyms?: string[] }[]
+  examples: { en: string; cn: string }[]
+  synonyms: string[]
+  antonyms: string[]
+  exams: string[]
+  source: string
 }
 
 /* ------------------------------------------------------------------ */
@@ -97,68 +130,41 @@ const emit = defineEmits<{
 }>()
 
 /* ------------------------------------------------------------------ */
-/*  Mock Dictionary (~30 common words)                                 */
-/* ------------------------------------------------------------------ */
-
-const dictionary: Record<string, DictEntry> = {
-  // AI & Technology
-  ubiquitous: { phonetic: '/juːˈbɪkwɪtəs/', pos: 'adj.', en: 'Present, appearing, or found everywhere.', cn: '无处不在的' },
-  paradigm: { phonetic: '/ˈpærədaɪm/', pos: 'n.', en: 'A typical example or pattern of something.', cn: '范式，典范' },
-  algorithms: { phonetic: '/ˈælɡərɪðəm/', pos: 'n.', en: 'A process or set of rules to be followed in calculations.', cn: '算法' },
-  algorithm: { phonetic: '/ˈælɡərɪðəm/', pos: 'n.', en: 'A process or set of rules to be followed in calculations.', cn: '算法' },
-  autonomous: { phonetic: '/ɔːˈtɒnəməs/', pos: 'adj.', en: 'Having the freedom to govern itself or control its own affairs.', cn: '自主的，自治的' },
-  artificial: { phonetic: '/ˌɑːrtɪˈfɪʃl/', pos: 'adj.', en: 'Made or produced by human beings rather than occurring naturally.', cn: '人工的，人造的' },
-  intelligence: { phonetic: '/ɪnˈtelɪdʒəns/', pos: 'n.', en: 'The ability to acquire and apply knowledge and skills.', cn: '智能，智力' },
-  neural: { phonetic: '/ˈnjʊərəl/', pos: 'adj.', en: 'Relating to a nerve or the nervous system.', cn: '神经的' },
-  quantum: { phonetic: '/ˈkwɒntəm/', pos: 'n./adj.', en: 'The minimum amount of any physical entity in an interaction.', cn: '量子' },
-  blockchain: { phonetic: '/ˈblɒktʃeɪn/', pos: 'n.', en: 'A digital ledger of transactions duplicated and distributed across a network.', cn: '区块链' },
-
-  // Science
-  hypothesis: { phonetic: '/haɪˈpɒθəsɪs/', pos: 'n.', en: 'A proposed explanation for a phenomenon, made as a starting point for investigation.', cn: '假说，假设' },
-  empirical: { phonetic: '/ɪmˈpɪrɪkl/', pos: 'adj.', en: 'Based on observation or experience rather than theory.', cn: '经验的，实证的' },
-  synthesis: { phonetic: '/ˈsɪnθəsɪs/', pos: 'n.', en: 'The combination of ideas to form a theory or system.', cn: '综合，合成' },
-  catalyst: { phonetic: '/ˈkætəlɪst/', pos: 'n.', en: 'A substance that increases the rate of a chemical reaction.', cn: '催化剂' },
-  entropy: { phonetic: '/ˈentrəpi/', pos: 'n.', en: 'A measure of disorder or randomness in a system.', cn: '熵' },
-
-  // Academic & Abstract
-  resilience: { phonetic: '/rɪˈzɪliəns/', pos: 'n.', en: 'The capacity to recover quickly from difficulties.', cn: '韧性，恢复力' },
-  ambiguous: { phonetic: '/æmˈbɪɡjuəs/', pos: 'adj.', en: 'Open to more than one interpretation; not clear.', cn: '模糊的，含混的' },
-  pragmatic: { phonetic: '/præɡˈmætɪk/', pos: 'adj.', en: 'Dealing with things sensibly and realistically.', cn: '务实的' },
-  eloquent: { phonetic: '/ˈeləkwənt/', pos: 'adj.', en: 'Fluent or persuasive in speaking or writing.', cn: '雄辩的，有口才的' },
-  meticulous: { phonetic: '/məˈtɪkjələs/', pos: 'adj.', en: 'Showing great attention to detail; very careful and precise.', cn: '一丝不苟的' },
-
-  // Daily & General
-  collaborate: { phonetic: '/kəˈlæbəreɪt/', pos: 'v.', en: 'To work jointly on an activity or project.', cn: '合作，协作' },
-  sustainable: { phonetic: '/səˈsteɪnəbl/', pos: 'adj.', en: 'Able to be maintained at a certain rate or level.', cn: '可持续的' },
-  innovation: { phonetic: '/ˌɪnəˈveɪʃn/', pos: 'n.', en: 'The introduction of new ideas, methods, or products.', cn: '创新' },
-  perspective: { phonetic: '/pəˈspektɪv/', pos: 'n.', en: 'A particular attitude toward or way of regarding something.', cn: '观点，视角' },
-  inevitable: { phonetic: '/ɪnˈevɪtəbl/', pos: 'adj.', en: 'Certain to happen; unavoidable.', cn: '不可避免的' },
-  prevalent: { phonetic: '/ˈprevələnt/', pos: 'adj.', en: 'Widespread in a particular area at a particular time.', cn: '流行的，普遍的' },
-  versatile: { phonetic: '/ˈvɜːrsətl/', pos: 'adj.', en: 'Able to adapt to many different functions or activities.', cn: '多才多艺的，多功能的' },
-  articulate: { phonetic: '/ɑːrˈtɪkjulət/', pos: 'adj./v.', en: 'Having or showing the ability to speak fluently and coherently.', cn: '善于表达的' },
-  scrutinize: { phonetic: '/ˈskruːtənaɪz/', pos: 'v.', en: 'To examine or inspect closely and thoroughly.', cn: '仔细审查' },
-  relinquish: { phonetic: '/rɪˈlɪŋkwɪʃ/', pos: 'v.', en: 'To voluntarily give up something.', cn: '放弃，放手' },
-}
-
-/* ------------------------------------------------------------------ */
 /*  Reactive State                                                     */
 /* ------------------------------------------------------------------ */
 
 const popoverRef = ref<HTMLElement | null>(null)
+const rootRef = ref<HTMLElement | null>(null)
 const showPopover = ref(false)
 const currentWord = ref('')
 const popoverLeft = ref(0)
 const popoverTop = ref(0)
 const placementAbove = ref(true)
+const dictEntry = ref<DictEntry | null>(null)
+const dictLoading = ref(false)
+const dictError = ref(false)
+
+/* ------------------------------------------------------------------ */
+/*  Dictionary Lookup                                                  */
+/* ------------------------------------------------------------------ */
+
+async function loadDict(word: string) {
+  dictLoading.value = true
+  dictError.value = false
+  dictEntry.value = null
+  try {
+    const { dictionaryApi } = await import('../api/dictionary')
+    dictEntry.value = await dictionaryApi.lookup(word)
+  } catch {
+    dictError.value = true
+  } finally {
+    dictLoading.value = false
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Computed                                                           */
 /* ------------------------------------------------------------------ */
-
-const dictEntry = computed<DictEntry | null>(() => {
-  const word = currentWord.value.toLowerCase().replace(/[^a-z\s'-]/g, '').trim()
-  return dictionary[word] || null
-})
 
 const popoverStyle = computed(() => ({
   left: `${popoverLeft.value}px`,
@@ -187,25 +193,52 @@ const arrowStyle = computed(() => {
 /* ------------------------------------------------------------------ */
 
 function handleSelect(_event: MouseEvent) {
+  // Defer to the next tick so a double-click / drag-select has fully
+  // formed the Selection before we read it. On the first mouseup of a
+  // double-click the selection is often still empty.
+  window.setTimeout(() => {
+    doSelect()
+  }, 10)
+}
+
+function doSelect() {
   const selection = window.getSelection()
-  if (!selection) return
+  if (!selection || !selection.rangeCount) return
+
+  // Selection must actually intersect the wrapper; otherwise mouseup on a
+  // stray click would try to look up unrelated text and the getRangeAt(0)
+  // call below would throw.
+  const wrapper = rootRef.value
+  if (!wrapper) return
+  const range = selection.getRangeAt(0)
+  if (!range.intersectsNode(wrapper)) return
 
   const text = selection.toString().trim()
   if (!text) return
 
-  // Only accept single words or short phrases (max 3 words)
+  // Accept any selected word/phrase — including a full sentence. Dictionary
+  // lookup of a long phrase may return nothing, but we still show the
+  // popover with feedback rather than silently doing nothing.
   const words = text.split(/\s+/).filter(w => w.length > 0)
-  if (words.length === 0 || words.length > 3) return
+  if (words.length === 0) return
 
-  // Get the bounding rect of the selection
-  const range = selection.getRangeAt(0)
-  const rect = range.getBoundingClientRect()
+  // Get the bounding rect of the selection (wrap defensively — collapsed
+  // ranges throw DOMException in some WebViews).
+  let rect: DOMRect
+  try {
+    rect = range.getBoundingClientRect()
+  } catch {
+    return
+  }
 
   if (rect.width === 0 && rect.height === 0) return
 
-  currentWord.value = text
+  // Long selections (sentences) aren't dictionary words — look up only the
+  // first word as a fallback so the popover always shows something useful.
+  currentWord.value = words.length > 3 ? words.slice(0, 3).join(' ') : text
 
-  // Compute position: above the selection by default
+  // Fetch word definition from backend dictionary API
+  loadDict(text)
   const popoverHeight = 220 // estimated
   const popoverWidth = 320
   const gap = 10
@@ -398,18 +431,96 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-sm);
 }
 
-.word-popover__def-en {
-  font-size: 0.875rem;
-  color: var(--color-text);
-  line-height: 1.55;
-  margin: var(--space-1) 0;
-}
-
 .word-popover__def-cn {
   font-size: 0.8125rem;
   color: var(--color-text-muted);
   line-height: 1.5;
   margin: 0;
+}
+
+/* ── Rich dictionary content ───────────────────────────────────── */
+
+.word-popover__loading {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.word-popover__translations,
+.word-popover__defs,
+.word-popover__examples {
+  margin-bottom: var(--space-2);
+}
+
+.word-popover__trow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.word-popover__cn {
+  font-size: 0.875rem;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.word-popover__def {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.word-popover__def-en {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.word-popover__example {
+  padding: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-1);
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+}
+
+.word-popover__example-en {
+  font-size: 0.8125rem;
+  color: var(--color-text);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.word-popover__example-cn {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+  margin: var(--space-1) 0 0;
+}
+
+.word-popover__synonyms {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: 1px dashed var(--color-border);
+}
+
+.word-popover__syn-label {
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  margin-right: var(--space-1);
+}
+
+.word-popover__syn-tag {
+  font-size: 0.75rem;
+  color: var(--color-primary);
+  background: var(--color-surface-muted);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
 }
 
 .word-popover__empty {

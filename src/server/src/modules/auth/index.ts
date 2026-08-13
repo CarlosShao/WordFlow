@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken'
 import { AppError, ErrorType } from '../../common/errors.js'
 import { config } from '../../config/index.js'
 import { logger } from '../../common/logger.js'
+import { getPrisma } from '../../common/prisma.js'
 import './types.js'
 import {
   registerUser,
@@ -31,9 +32,15 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(1, 'refreshToken 不能为空'),
 })
 
+const updateSettingsSchema = z.object({
+  settings: z.record(z.unknown()).optional(),
+})
+
 // ------------------- Routes -------------------
 
 export async function authRoutes(app: FastifyInstance) {
+  const prisma = getPrisma()
+
   // Register authenticate decorator if not already present
   if (!app.hasDecorator('authenticate')) {
     app.decorate('authenticate', buildAuthenticate())
@@ -79,6 +86,30 @@ export async function authRoutes(app: FastifyInstance) {
     await logoutUser(refreshToken)
 
     return reply.send({ success: true, data: null })
+  })
+
+  // ---- Get user settings ----
+  app.get('/api/v1/auth/settings', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = request.user!.id
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { settings: true } })
+    return reply.send({ success: true, data: user?.settings ?? {} })
+  })
+
+  // ---- Update user settings (merge) ----
+  app.put('/api/v1/auth/settings', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = request.user!.id
+    const { settings } = updateSettingsSchema.parse(request.body)
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { settings: true } })
+    const merged = { ...(user?.settings as Record<string, unknown> | undefined ?? {}), ...(settings ?? {}) }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { settings: merged },
+      select: { settings: true },
+    })
+
+    return reply.send({ success: true, data: updated.settings ?? {} })
   })
 
   // ---- GitHub OAuth: redirect ----

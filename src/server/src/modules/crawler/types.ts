@@ -23,6 +23,8 @@ export interface CrawlItem {
   videoUrl?: string | null
   /** Playable audio URL (for PODCAST type) */
   audioUrl?: string | null
+  /** Override source.contentType on a per-item basis (e.g. video enclosure in RSS) */
+  type?: ContentType
 }
 
 /**

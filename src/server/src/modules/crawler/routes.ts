@@ -10,28 +10,42 @@ import {
   deleteSource,
   crawlSingleSource,
   crawlAllEnabledSources,
+  createManySources,
 } from './service.js'
+import { discoverTedTalkUrls } from './strategies/ted.js'
 
 // ------------------- Validation Schemas -------------------
 
 const createSourceSchema = z.object({
   name: z.string().min(1).max(200),
   url: z.string().url(),
-  type: z.enum(['RSS', 'YOUTUBE', 'TWITTER', 'WEB', 'PUPPETEER']),
+  type: z.enum(['RSS', 'YOUTUBE', 'TWITTER', 'WEB', 'PUPPETEER', 'TED', 'VOA', 'PODCAST', 'IELTS', 'TOEFL']),
   contentType: z.enum(['ARTICLE', 'VIDEO', 'PODCAST']),
   difficulty: z.enum(['BEGINNER', 'ELEMENTARY', 'INTERMEDIATE', 'UPPER_INTERMEDIATE', 'ADVANCED', 'PROFICIENT']),
-  crawlInterval: z.number().int().positive().optional(),
+  crawlInterval: z.number().int().nonnegative().optional(),
   enabled: z.boolean().optional(),
 })
 
 const updateSourceSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   url: z.string().url().optional(),
-  type: z.enum(['RSS', 'YOUTUBE', 'TWITTER', 'WEB', 'PUPPETEER']).optional(),
+  type: z.enum(['RSS', 'YOUTUBE', 'TWITTER', 'WEB', 'PUPPETEER', 'TED', 'VOA', 'PODCAST', 'IELTS', 'TOEFL']).optional(),
   contentType: z.enum(['ARTICLE', 'VIDEO', 'PODCAST']).optional(),
   difficulty: z.enum(['BEGINNER', 'ELEMENTARY', 'INTERMEDIATE', 'UPPER_INTERMEDIATE', 'ADVANCED', 'PROFICIENT']).optional(),
-  crawlInterval: z.number().int().positive().optional(),
+  crawlInterval: z.number().int().nonnegative().optional(),
   enabled: z.boolean().optional(),
+})
+
+const discoverTedSchema = z.object({
+  pageStart: z.number().int().min(1).max(50).optional().default(1),
+  pageEnd: z.number().int().min(1).max(50).optional().default(5),
+  max: z.number().int().min(1).max(500).optional().default(100),
+  topics: z.array(z.string()).optional(),
+  importAsSources: z.boolean().optional().default(false),
+  difficulty: z
+    .enum(['BEGINNER', 'ELEMENTARY', 'INTERMEDIATE', 'UPPER_INTERMEDIATE', 'ADVANCED', 'PROFICIENT'])
+    .optional()
+    .default('INTERMEDIATE'),
 })
 
 // ------------------- Routes -------------------
@@ -50,7 +64,6 @@ export async function crawlerRoutes(app: FastifyInstance) {
     logger.info({ sourceId: source.id }, 'Crawler source created via API')
     return reply.code(201).send({ success: true, data: source })
   })
-
   // ---- List sources ----
   app.get('/api/v1/crawler/sources', authHandler, async (_request, reply) => {
     const sources = await listSources()
@@ -109,8 +122,6 @@ export async function crawlerRoutes(app: FastifyInstance) {
   })
 
   // ---- Trigger crawl for all enabled sources ----
-  // Synchronous: wait for the whole crawl to finish and return a structured
-  // result so the frontend can show real feedback (inserted count / failures).
   app.post('/api/v1/crawler/crawl-all', authHandler, async (_request, reply) => {
     const result = await crawlAllEnabledSources()
     logger.info(
@@ -132,4 +143,60 @@ export async function crawlerRoutes(app: FastifyInstance) {
       },
     })
   })
+
+  // ---- Discover TED historical talks (optional: bulk import as sources) ----
+  //
+  // Crawls ted.com/talks paginated listing and returns a list of talk URLs.
+  // When `importAsSources=true`, each URL is saved as an individual
+  // CrawlerSource (type=RSS-compatible TED strategy) so they can be crawled
+  // via the standard pipeline.
+  app.post('/api/v1/crawler/ted/discover', authHandler, async (request, reply) => {
+    const parsed = discoverTedSchema.safeParse(request.body)
+    if (!parsed.success) {
+      throw new AppError(
+        ErrorType.VALIDATION,
+        parsed.error.issues[0]?.message ?? '参数错误',
+        400,
+        parsed.error.issues,
+      )
+    }
+
+    const urls = await discoverTedTalkUrls({
+      pageStart: parsed.data.pageStart,
+      pageEnd: parsed.data.pageEnd,
+      max: parsed.data.max,
+      topics: parsed.data.topics,
+    })
+
+    let imported = 0
+    let skipped = 0
+    if (parsed.data.importAsSources && urls.length > 0) {
+      const rows = urls.map((u) => {
+        const slug = u.split('/').pop() || 'ted-talk'
+        return {
+          name: `TED: ${slug.replace(/_/g, ' ')}`,
+          url: u,
+          type: 'TED' as const,
+          contentType: 'VIDEO' as const,
+          difficulty: parsed.data.difficulty,
+          crawlInterval: 0,            // Historical: never auto-refresh
+          enabled: true,
+        }
+      })
+      const result = await createManySources(rows)
+      imported = result.created
+      skipped = result.skipped
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        urls,
+        count: urls.length,
+        imported,
+        skipped,
+      },
+    })
+  })
 }
+

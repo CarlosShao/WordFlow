@@ -8,6 +8,8 @@ import { twitterStrategy } from './twitter.js'
 import { tedStrategy } from './ted.js'
 import { voaStrategy } from './voa.js'
 import { podcastStrategy } from './podcast.js'
+import { ieltsStrategy } from './ielts.js'
+import { toeflStrategy } from './toefl.js'
 
 /**
  * Strategy registry — maps source type to its crawl implementation
@@ -21,6 +23,8 @@ const strategyMap: Record<CrawlerSourceType, CrawlStrategy> = {
   TED: tedStrategy,
   VOA: voaStrategy,
   PODCAST: podcastStrategy,
+  IELTS: ieltsStrategy,
+  TOEFL: toeflStrategy,
 }
 
 /**

@@ -4,7 +4,7 @@
            monospace accents, minimalist to the extreme.
    ═══════════════════════════════════════════════════════════════ */
 
-[data-theme="vercel"] {
+:root[data-theme="vercel"] {
   /* ── Colors ─────────────────────────────────────────────── */
   --color-brand: #000000;
   --color-text: #000000;

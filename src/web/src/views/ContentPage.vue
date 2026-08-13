@@ -361,6 +361,8 @@ function fetchContent() {
     type: (selectedType.value as ContentType) || undefined,
     category: (selectedCategory.value as ContentCategory) || undefined,
     difficulty: selectedDifficulty.value || undefined,
+    // When "全部" is selected, request mixed types
+    mix: !selectedType.value,
   })
 }
 
@@ -610,12 +612,13 @@ async function crawlBySource(sourceName: string) {
 }
 
 .source-tag {
-  padding: 1px 8px;
-  font-size: 0.6875rem;
+  padding: 4px 10px;
+  font-size: 0.875rem;
   background: var(--color-surface);
   border-radius: 999px;
   color: var(--color-primary);
   border: 1px solid var(--color-border);
+  line-height: 1.4;
 }
 
 .source-more {
@@ -795,14 +798,14 @@ async function crawlBySource(sourceName: string) {
   white-space: nowrap;
   min-width: 0;
 }
-
 .option-type {
-  font-size: 0.6875rem;
+  font-size: 0.875rem;
   font-weight: 500;
-  padding: 1px 6px;
+  padding: 4px 10px;
   border-radius: 999px;
   background: var(--color-surface-subtle);
   color: var(--color-text-muted);
+  line-height: 1.4;
   white-space: nowrap;
   flex-shrink: 0;
   margin-left: auto;
@@ -868,11 +871,12 @@ async function crawlBySource(sourceName: string) {
 }
 
 .source-count {
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
   background: var(--color-surface-muted);
-  padding: 2px 8px;
+  padding: 5px 12px;
   border-radius: 999px;
+  line-height: 1.4;
 }
 
 .btn-mini-crawl {
@@ -880,8 +884,8 @@ async function crawlBySource(sourceName: string) {
   align-items: center;
   gap: 4px;
   margin-left: auto;
-  padding: 4px 10px;
-  font-size: 0.75rem;
+  padding: 6px 14px;
+  font-size: 0.875rem;
   font-family: var(--font-sans);
   color: var(--color-primary);
   background: transparent;
@@ -889,6 +893,7 @@ async function crawlBySource(sourceName: string) {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.16s ease;
+  line-height: 1.4;
 }
 
 .btn-mini-crawl:hover {
@@ -988,11 +993,13 @@ async function crawlBySource(sourceName: string) {
   position: absolute;
   top: var(--space-3);
   left: var(--space-3);
-  padding: 2px 10px;
-  font-size: 0.6875rem;
+  padding: 5px 12px;
+  font-size: 0.875rem;
   font-weight: 700;
   border-radius: var(--radius-sm);
   letter-spacing: 0.02em;
+  line-height: 1.4;
+  z-index: 2;
 }
 
 .badge-article {
@@ -1038,10 +1045,11 @@ async function crawlBySource(sourceName: string) {
 .meta-difficulty {
   display: inline-flex;
   align-items: center;
-  padding: 1px 6px;
-  font-size: 0.6875rem;
+  padding: 4px 10px;
+  font-size: 0.875rem;
   font-weight: 600;
   border-radius: var(--radius-sm);
+  line-height: 1.4;
 }
 
 .difficulty-A1 { background: var(--color-success-50); color: var(--color-success-700); }
@@ -1073,8 +1081,9 @@ async function crawlBySource(sourceName: string) {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
+  line-height: 1.4;
 }
 
 .footer-stat.has-content {

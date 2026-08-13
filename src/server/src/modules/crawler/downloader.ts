@@ -30,6 +30,65 @@ export interface CrawledMedia {
 }
 
 /**
+ * Extract TED talk slug from various URL patterns.
+ * Normalizes hyphens to underscores since TED uses underscores in page URLs.
+ */
+function extractTedSlug(url: string): string | null {
+  // Pattern 1: Standard TED talk page URL
+  if (url.includes('ted.com/talks/')) {
+    const m = url.match(/ted\.com\/talks\/(?:embed\/)?([a-z0-9_]+)/i)
+    if (m) return m[1]
+  }
+
+  // Pattern 2: py.tedcdn.com CDN download URL
+  const cdnMatch = url.match(/\/downloads\/\d{4}-([a-z][a-z0-9_-]+?)-[0-9a-f-]{8,}-download/i)
+  if (cdnMatch) {
+    return cdnMatch[1].replace(/-/g, '_')
+  }
+
+  // Pattern 3: download.ted.com with talk slug
+  const dlMatch = url.match(/download\.ted\.com\/[^/]+\/(?:[^/]+\/)?([a-z0-9_]+)/i)
+  if (dlMatch) return dlMatch[1]
+
+  return null
+}
+
+/**
+ * Resolve a stable embed URL from a media URL + yt-dlp metadata.
+ *
+ * TED talks use temporary CDN download URLs that expire within hours.
+ * We convert them to the permanent embed URL: `https://www.ted.com/talks/embed/{slug}`.
+ * YouTube videos get the standard embed URL: `https://www.youtube.com/embed/{id}`.
+ * Everything else falls back to `webpage_url` (the canonical page URL).
+ */
+function resolveEmbedUrl(url: string, meta: any): string {
+  // TED CDN download URL → extract slug and convert to embed
+  if (url.includes('download.ted.com') || url.includes('py.tedcdn.com')) {
+    const pageUrl = meta.webpage_url || meta.original_url
+    const slug = extractTedSlug(url) || extractTedSlug(pageUrl || '')
+    if (slug) return `https://www.ted.com/talks/embed/${slug}`
+  }
+
+  // TED talk page → construct embed URL from the slug
+  const slug = extractTedSlug(url)
+  if (slug) {
+    return `https://www.ted.com/talks/embed/${slug}`
+  }
+
+  // YouTube video → use embed URL
+  if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    const ytId =
+      meta.id ??
+      url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/)?.[1] ??
+      url.match(/[?&]v=([a-zA-Z0-9_-]{11})/)?.[1]
+    if (ytId) return `https://www.youtube.com/embed/${ytId}`
+  }
+
+  // Fallback to webpage_url from yt-dlp metadata, then the original URL
+  return meta.webpage_url ?? url
+}
+
+/**
  * Chinese subtitle language codes in descending order of trustworthiness.
  *
  * Verified against real TED/YouTube output:
@@ -44,12 +103,16 @@ const ZH_LANG_PREFERENCE = ['zh-cn', 'zh-Hans', 'zh-CN', 'zh-hans', 'zh-sg', 'zh
 function ytDlpArgs(
   url: string,
   workDir: string,
-  opts: { subtitles: boolean; audio: boolean; autoSubs: boolean },
+  opts: { subtitles: boolean; audio: boolean; autoSubs: boolean; cookie?: string },
 ): string[] {
   // `--print-json` downloads AND prints metadata. `--dump-json` only prints
   // metadata and skips every download step, so no subtitle file is ever
   // written — that was the root cause of "no transcript found" on TED.
   const args = ['--no-warnings', '--print-json', '--no-playlist', '-P', workDir]
+  // Inject raw cookie string via header (avoids Netscape cookiejar parsing bugs).
+  if (opts.cookie && opts.cookie.trim()) {
+    args.push('--add-header', `Cookie: ${opts.cookie.trim()}`)
+  }
   if (opts.subtitles) {
     // Request human subtitles first. Auto-generated captions are only pulled
     // when explicitly allowed, since their Chinese track is machine pivoted.
@@ -67,9 +130,13 @@ function ytDlpArgs(
   return args
 }
 
-function runYtDlp(args: string[]): Promise<{ meta: any; files: string[] }> {
+function runYtDlp(
+  args: string[],
+  cookie?: string,
+): Promise<{ meta: any; files: string[] }> {
+  const fullArgs = cookie && cookie.trim() ? [...args, '--add-header', `Cookie: ${cookie.trim()}`] : args
   return new Promise((resolve, reject) => {
-    const proc = spawn('yt-dlp', args, { windowsHide: true })
+    const proc = spawn('yt-dlp', fullArgs, { windowsHide: true })
     let stdout = ''
     let stderr = ''
     proc.stdout.on('data', (d) => (stdout += d))
@@ -106,7 +173,7 @@ async function uploadFileToMinio(localPath: string, objectKey: string, contentTy
  */
 export async function fetchMedia(
   url: string,
-  opts: { audio?: boolean; autoSubs?: boolean } = {},
+  opts: { audio?: boolean; autoSubs?: boolean; cookie?: string } = {},
 ): Promise<CrawledMedia> {
   const workDir = await mkdtemp(join(tmpdir(), 'wordflow-crawl-'))
   try {
@@ -114,15 +181,16 @@ export async function fetchMedia(
       subtitles: true,
       audio: !!opts.audio,
       autoSubs: !!opts.autoSubs,
+      cookie: opts.cookie,
     })
-    const { meta } = await runYtDlp(args)
+    const { meta } = await runYtDlp(args, opts.cookie)
 
     const result: CrawledMedia = {
       title: meta.title ?? meta.fulltitle ?? 'Untitled',
       description: meta.description,
       thumbnailUrl: meta.thumbnail,
       durationSec: meta.duration,
-      externalUrl: meta.webpage_url ?? url,
+      externalUrl: resolveEmbedUrl(url, meta),
     }
 
     // Locate subtitle files by scanning the work dir. Guessing the name from

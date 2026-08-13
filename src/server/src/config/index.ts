@@ -35,6 +35,18 @@ const envSchema = z.object({
 
   YOUTUBE_API_KEY: z.string().optional(),
   TWITTER_BEARER_TOKEN: z.string().optional(),
+
+  // Raw Bilibili cookie string (key=value; ...) used to unlock CC subtitles
+  // and higher-quality streams via yt-dlp.
+  BILIBILI_COOKIE: z.string().optional(),
+
+  // 词典爬取配置
+  DICT_CRAWL_ENABLED: z.coerce.boolean().default(true),
+  DICT_CRAWL_CRON: z.string().default('0 3 * * *'), // 默认每天 3:00
+  DICT_CRAWL_DAILY_LIMIT: z.coerce.number().default(1000), // 每日上限
+  DICT_CRAWL_DELAY_MS: z.coerce.number().default(1200), // 单词间间隔
+  DICT_CRAWL_BATCH_SIZE: z.coerce.number().default(50), // 每批词数
+  DICT_CRAWL_BATCH_REST_MS: z.coerce.number().default(30000), // 批间休息
 })
 
 const parsed = envSchema.safeParse(process.env)
@@ -87,4 +99,14 @@ export const config = {
 
   youtubeApiKey: parsed.data.YOUTUBE_API_KEY,
   twitterBearerToken: parsed.data.TWITTER_BEARER_TOKEN,
+  bilibiliCookie: parsed.data.BILIBILI_COOKIE,
+
+  dictionaryCrawl: {
+    enabled: parsed.data.DICT_CRAWL_ENABLED,
+    cron: parsed.data.DICT_CRAWL_CRON,
+    dailyLimit: parsed.data.DICT_CRAWL_DAILY_LIMIT,
+    delayMs: parsed.data.DICT_CRAWL_DELAY_MS,
+    batchSize: parsed.data.DICT_CRAWL_BATCH_SIZE,
+    batchRestMs: parsed.data.DICT_CRAWL_BATCH_REST_MS,
+  },
 }

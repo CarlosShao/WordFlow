@@ -25,3 +25,15 @@ Thumbs.db
 # Build
 *.tsbuildinfo
 nextbuild/
+
+# Secrets / local config
+.bilibili_cookie.txt
+*.cookie.txt
+
+# Ad-hoc diagnostic scripts (not part of the app)
+_*.py
+_*.ts
+_*.mjs
+src/scripts/debug/
+src/server/src/test-debug/
+src/server/src/scripts/dbg-*.ts
