@@ -17,6 +17,20 @@ shared/
 
 ## Development
 
+**基础设施 + 后端（Docker，推荐）：**
+```bash
+# 启动所有服务（PostgreSQL / Redis / MinIO / 后端 API）
+docker compose up -d
+
+# 查看后端日志
+docker logs -f wordflow-api
+
+# 停止服务
+docker compose down
+```
+> 后端 API 必须在 Docker 中启动（dev 环境，端口 3002，热更新）。
+> 前端由用户自行启动。
+
 **Web:**
 ```bash
 cd src/web
@@ -29,13 +43,6 @@ npm run dev
 cd src/desktop
 npm install
 npm run tauri dev
-```
-
-**Server:**
-```bash
-cd src/server
-npm install
-npm run dev
 ```
 
 ## Build

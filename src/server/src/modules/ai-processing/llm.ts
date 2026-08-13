@@ -9,7 +9,7 @@
 import { config } from '../../config/index.js'
 import { logger } from '../../common/logger.js'
 
-export async function callLlm(messages: { role: string; content: string }[]): Promise<string> {
+export async function callLlm(messages: { role: string; content: string }[], opts?: { maxTokens?: number; temperature?: number }): Promise<string> {
   const response = await fetch(`${config.ai.apiBaseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -19,8 +19,8 @@ export async function callLlm(messages: { role: string; content: string }[]): Pr
     body: JSON.stringify({
       model: config.ai.model,
       messages,
-      temperature: 0.7,
-      max_tokens: 2048,
+      temperature: opts?.temperature ?? 0.7,
+      max_tokens: opts?.maxTokens ?? 4096,
     }),
   })
 
@@ -29,8 +29,41 @@ export async function callLlm(messages: { role: string; content: string }[]): Pr
     throw new Error(`LLM API error: ${response.status} - ${error}`)
   }
 
-  const data = await response.json() as { choices: { message: { content: string } }[] }
-  return data.choices[0]?.message?.content || ''
+  const data = await response.json() as {
+    choices: Array<{
+      message: {
+        content: string
+        reasoning?: string
+        reasoning_content?: string
+      }
+    }>
+  }
+  
+  const msg = data.choices[0]?.message
+  if (!msg) return ''
+  
+  // For reasoning models, content may be in different fields
+  // Priority: content > reasoning (last part after thinking) > reasoning_content
+  if (msg.content && msg.content.trim()) {
+    return msg.content.trim()
+  }
+  
+  // If content is empty but reasoning exists, extract the final answer
+  // The reasoning field sometimes contains the answer after thinking
+  if (msg.reasoning && msg.reasoning.trim()) {
+    const reasoning = msg.reasoning.trim()
+    // Try to find the last sentence as the answer
+    // For translations, the answer is typically at the end
+    logger.warn({ reason: 'content empty, using reasoning' }, 'callLlm: using reasoning as fallback')
+    return reasoning
+  }
+  
+  if (msg.reasoning_content && msg.reasoning_content.trim()) {
+    logger.warn({ reason: 'content empty, using reasoning_content' }, 'callLlm: using reasoning_content as fallback')
+    return msg.reasoning_content.trim()
+  }
+  
+  return ''
 }
 
 /**

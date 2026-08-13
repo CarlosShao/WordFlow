@@ -4,7 +4,7 @@
            elegant, refined, luxury feel. Based on dl_builtin_golden_time.
    ═══════════════════════════════════════════════════════════════ */
 
-[data-theme="golden-time"] {
+:root[data-theme="golden-time"] {
   /* ── Colors — Warm, light, elegant ─────────────────────────── */
   --color-brand: #3b352b;
   --color-text: #3b352b;

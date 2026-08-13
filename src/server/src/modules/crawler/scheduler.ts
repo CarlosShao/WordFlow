@@ -7,15 +7,27 @@ let isRunning = false
 let cronTask: cron.ScheduledTask | null = null
 
 /**
- * Default cron expression: every day at 3:00 AM
+ * How often the scheduler wakes to check which sources are due (minutes).
+ * crawl_interval is expressed in minutes per source; a source is due when
+ * `last_crawled_at + crawl_interval` has passed. A source with crawl_interval
+ * = 0 is treated as "never auto-refresh" (e.g. historical bulk imports).
  */
-const DEFAULT_CRON = '0 3 * * *'
+const TICK_CRON = '*/10 * * * *'
+
+/** Decide whether a source is due for a crawl right now. */
+function isDue(intervalMinutes: number, lastCrawledAt: Date | null, now: number): boolean {
+  if (intervalMinutes <= 0) return false // 0 => never auto-refresh
+  if (!lastCrawledAt) return true // never crawled => due immediately
+  return now - lastCrawledAt.getTime() >= intervalMinutes * 60 * 1000
+}
 
 /**
  * Start the crawler scheduler.
- * Uses node-cron to schedule periodic crawling of all enabled sources.
- * Default schedule: daily at 3:00 AM.
- * Individual sources can have custom intervals via crawlInterval field.
+ *
+ * Uses a periodic tick to run each enabled source on its own `crawlInterval`
+ * (minutes). Sources are crawled independently as they become due, so exam
+ * sources (e.g. IELTS weekly / daily) refresh on their configured cadence
+ * instead of being lumped into a single daily run.
  */
 export function startCrawlerScheduler(): void {
   if (cronTask) {
@@ -23,24 +35,32 @@ export function startCrawlerScheduler(): void {
     return
   }
 
-  cronTask = cron.schedule(DEFAULT_CRON, async () => {
+  cronTask = cron.schedule(TICK_CRON, async () => {
     if (isRunning) {
       logger.warn('Previous crawl job still running, skipping this cycle')
       return
     }
 
     isRunning = true
-    const startTime = Date.now()
+    const now = Date.now()
 
     try {
-      logger.info('Scheduled crawl job started')
       const prisma = getPrisma()
       const sources = await prisma.crawlerSource.findMany({
         where: { enabled: true },
       })
 
+      const due = sources.filter((s) => isDue(s.crawlInterval, s.lastCrawledAt, now))
+      if (due.length === 0) {
+        logger.debug({ enabled: sources.length }, 'Crawler tick: no sources due')
+        return
+      }
+
+      logger.info({ tickCron: TICK_CRON, enabled: sources.length, due: due.length }, 'Crawler tick started')
+      const startTime = Date.now()
+
       let totalInserted = 0
-      for (const source of sources) {
+      for (const source of due) {
         try {
           const result = await crawlSingleSource(source.id)
           totalInserted += result.inserted
@@ -50,7 +70,7 @@ export function startCrawlerScheduler(): void {
       }
 
       const duration = Date.now() - startTime
-      logger.info({ totalInserted, sourceCount: sources.length, durationMs: duration }, 'Scheduled crawl job completed')
+      logger.info({ totalInserted, sourceCount: due.length, durationMs: duration }, 'Crawler tick completed')
     } catch (err) {
       logger.error({ err }, 'Scheduled crawl job failed')
     } finally {
@@ -58,7 +78,7 @@ export function startCrawlerScheduler(): void {
     }
   })
 
-  logger.info({ schedule: DEFAULT_CRON }, 'Crawler scheduler started')
+  logger.info({ tick: TICK_CRON }, 'Crawler scheduler started')
 }
 
 /**

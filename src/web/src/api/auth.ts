@@ -37,6 +37,16 @@ export const authApi = {
     return data as unknown as UserProfile
   },
 
+  async getSettings(): Promise<Record<string, unknown>> {
+    const data = await client.get('/api/v1/auth/settings')
+    return (data as unknown as Record<string, unknown>) ?? {}
+  },
+
+  async updateSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const data = await client.put('/api/v1/auth/settings', { settings })
+    return (data as unknown as Record<string, unknown>) ?? {}
+  },
+
   getGithubOAuthUrl(): string {
     return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002'}/api/v1/auth/github`
   },

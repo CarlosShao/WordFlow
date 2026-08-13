@@ -4,7 +4,7 @@
            warm, youthful energy.
    ═══════════════════════════════════════════════════════════════ */
 
-[data-theme="vibe-camp"] {
+:root[data-theme="vibe-camp"] {
   /* ── Colors ─────────────────────────────────────────────── */
   --color-brand: #FF6B35;
   --color-text: #2D2A26;

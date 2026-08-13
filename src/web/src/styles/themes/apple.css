@@ -4,7 +4,7 @@
            SF Pro typography, generous whitespace, subtle depth.
    ═══════════════════════════════════════════════════════════════ */
 
-[data-theme="apple"] {
+:root[data-theme="apple"] {
   /* ── Colors ─────────────────────────────────────────────── */
   --color-brand: #1d1d1f;
   --color-text: #1d1d1f;

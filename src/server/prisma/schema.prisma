@@ -17,6 +17,7 @@ model User {
   password  String?
   githubId  String?  @unique
   avatarUrl String?
+  settings  Json?   // 用户偏好设置（主题、字体大小等）
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -66,6 +67,8 @@ model Content {
   publishedAt DateTime? @map("published_at")
   processedAt DateTime? @map("processed_at")
   createdBy   String?  @map("created_by")
+  bookId      String?  @map("book_id")      // 所属真题书（剑13 / TPO1 等）
+  bookOrder   Int?     @map("book_order")   // 书内顺序（阅读/听力分区）
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -73,12 +76,15 @@ model Content {
   userInteractions UserContentInteraction[]
   vocabularies     Vocabulary[]
   mistakes         Mistake[]
+  book             ExamBook?          @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  contentQuestions ContentQuestion[]
 
   @@unique([source, sourceUrl])
   @@index([type, createdAt])
   @@index([source, createdAt])
   @@index([processedAt])
   @@index([createdBy])
+  @@index([bookId])
   @@map("contents")
 }
 
@@ -102,6 +108,55 @@ model UserContentInteraction {
   @@index([userId, isFavorited])
   @@index([userId, mastery])
   @@map("user_content_interactions")
+}
+
+// ==================== 真题书与题目系统 ====================
+
+model ExamBook {
+  id          String       @id @default(uuid())
+  category    ExamCategory
+  title       String
+  coverUrl    String?      @map("cover_url")   // 实体书封面
+  year        Int?
+  description String?
+  contents    Content[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@map("exam_books")
+}
+
+model ContentQuestion {
+  id          String           @id @default(uuid())
+  contentId   String           @map("content_id")
+  type        ExamQuestionType
+  stem        String
+  options     Json?            // 选项（单选/多选/判断）
+  answer      Json             // 灵活答案（["A"] / {"1":"True"} / 填空词等）
+  explanation String?
+  order       Int              @default(0)
+  audioUrl    String?          @map("audio_url")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([contentId, order])
+  @@map("content_questions")
+}
+
+enum ExamCategory {
+  IELTS
+  TOEFL
+}
+
+enum ExamQuestionType {
+  MCQ                  // 单选
+  MCQ_MULTI            // 多选
+  TRUE_FALSE_NOT_GIVEN // 对/错/未提及
+  MATCHING             // 配对
+  COMPLETION           // 填空/完成句子
+  SHORT_ANSWER         // 简答
 }
 
 // ==================== 词汇系统 ====================
@@ -141,6 +196,32 @@ model Vocabulary {
   @@map("vocabularies")
 }
 
+// ==================== 词典爬取系统 ====================
+
+model DictionaryEntry {
+  id         String           @id @default(uuid())
+  word       String
+  status     DictionaryStatus @default(PENDING) @map("status")
+  retryCount Int              @default(0) @map("retry_count")
+  provider   String? // youdao / dictcn
+  priority   Int              @default(100) @map("priority") // 越小越优先
+  payload    Json? // 归一化后的词典条目
+  crawledAt  DateTime?        @map("crawled_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  @@unique([word])
+  @@index([status, priority])
+  @@map("dictionary_entries")
+}
+
+enum DictionaryStatus {
+  PENDING
+  DONE
+  NOT_FOUND
+  FAILED
+}
+
 // ==================== 练习系统 ====================
 
 model PracticeSession {
@@ -174,7 +255,11 @@ model PracticeQuestion {
   stem            String
   options         Json?
   correctAnswer   String   @map("correct_answer")
+  answerJson      Json?    // 灵活答案（配对映射、多选、判断等）
+  audioUrl        String?  @map("audio_url")   // 听力音频
+  passage         String?  // 阅读原文片段
   userAnswer      String?  @map("user_answer")
+  userAnswerJson  Json?    @map("user_answer_json")
   isCorrect       Boolean? @map("is_correct")
   explanation     String?
   contentSegment  String?  @map("content_segment")
@@ -257,6 +342,12 @@ enum QuestionType {
   GRAMMAR
   VOCABULARY
   LISTENING
+  MCQ                 // 单选
+  MCQ_MULTI           // 多选
+  TRUE_FALSE_NOT_GIVEN // 对/错/未提及
+  MATCHING            // 配对
+  COMPLETION          // 填空/完成句子
+  SHORT_ANSWER        // 简答
 }
 
 enum SessionStatus {
@@ -295,4 +386,6 @@ enum CrawlerSourceType {
   TED
   VOA
   PODCAST
+  IELTS
+  TOEFL
 }

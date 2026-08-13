@@ -44,6 +44,77 @@ export async function createSource(input: CreateSourceInput) {
   return source
 }
 
+/**
+ * Bulk-create CrawlerSource rows, skipping any URL that already exists.
+ *
+ * Useful for bulk imports (e.g. hundreds of historical TED talks discovered
+ * from the listing page).  We skip duplicates by URL rather than failing the
+ * whole batch.
+ */
+export async function createManySources(
+  inputs: CreateSourceInput[],
+): Promise<{ created: number; skipped: number }> {
+  if (inputs.length === 0) return { created: 0, skipped: 0 }
+  const prisma = getPrisma()
+
+  const urls = inputs.map((i) => i.url)
+  const existing = await prisma.crawlerSource.findMany({
+    where: { url: { in: urls } },
+    select: { url: true },
+  })
+  const existingUrls = new Set(existing.map((r) => r.url))
+
+  const rows = inputs.filter((i) => !existingUrls.has(i.url))
+  let created = 0
+  if (rows.length > 0) {
+    // SQLite doesn't support createMany with SQLite driver in older Prisma;
+    // fall back to individual inserts via a transaction.
+    try {
+      await prisma.$transaction(
+        rows.map((input) =>
+          prisma.crawlerSource.create({
+            data: {
+              name: input.name,
+              url: input.url,
+              type: input.type,
+              contentType: input.contentType,
+              difficulty: input.difficulty,
+              crawlInterval: input.crawlInterval ?? 1440,
+              enabled: input.enabled ?? true,
+            },
+          }),
+        ),
+      )
+      created = rows.length
+    } catch (err) {
+      logger.warn({ err }, 'createManySources: batch insert failed, trying sequentially')
+      created = 0
+      for (const input of rows) {
+        try {
+          await prisma.crawlerSource.create({
+            data: {
+              name: input.name,
+              url: input.url,
+              type: input.type,
+              contentType: input.contentType,
+              difficulty: input.difficulty,
+              crawlInterval: input.crawlInterval ?? 1440,
+              enabled: input.enabled ?? true,
+            },
+          })
+          created++
+        } catch (innerErr) {
+          logger.debug({ url: input.url }, 'createManySources: skipping duplicate')
+        }
+      }
+    }
+  }
+
+  const skipped = inputs.length - created
+  logger.info({ created, skipped, requested: inputs.length }, 'Crawler sources bulk created')
+  return { created, skipped }
+}
+
 export async function listSources() {
   const prisma = getPrisma()
   return prisma.crawlerSource.findMany({
@@ -189,10 +260,13 @@ async function insertItem(
     return 0
   }
 
+  // Per-item type override (e.g. RSS feed with video enclosure → VIDEO)
+  const type = item.type ?? source.contentType
+
   await prisma.content.create({
     data: {
       title: item.title,
-      type: source.contentType,
+      type,
       source: source.name,
       sourceUrl: item.sourceUrl,
       author: item.author,

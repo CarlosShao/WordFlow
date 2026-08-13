@@ -4,7 +4,7 @@
            Roboto, colored FABs, layered shadows.
    ═══════════════════════════════════════════════════════════════ */
 
-[data-theme="google"] {
+:root[data-theme="google"] {
   /* ── Colors ─────────────────────────────────────────────── */
   --color-brand: #202124;
   --color-text: #202124;

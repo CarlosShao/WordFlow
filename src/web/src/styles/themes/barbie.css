@@ -4,7 +4,7 @@
            soft shadows, playful typography.
    ═══════════════════════════════════════════════════════════════ */
 
-[data-theme="barbie"] {
+:root[data-theme="barbie"] {
   /* ── Colors ─────────────────────────────────────────────── */
   --color-brand: #E91E8C;
   --color-text: #4A154B;

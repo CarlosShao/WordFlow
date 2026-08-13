@@ -97,6 +97,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../views/Settings/ApiConfig.vue'),
     meta: { title: 'AI API 配置', requiresAuth: true, hidden: true }
   },
+
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',

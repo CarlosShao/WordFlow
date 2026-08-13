@@ -21,9 +21,14 @@ export interface BuildMediaOptions {
   audio?: boolean
   /**
    * Allow falling back to auto-generated captions when no human transcript
-   * exists. Off by default: accuracy is preferred over coverage.
+   * exists. On by default for better coverage.
    */
   allowAutoCaptions?: boolean
+}
+
+const DEFAULT_MEDIA_OPTS: Required<BuildMediaOptions> = {
+  audio: false,
+  allowAutoCaptions: true,
 }
 
 /**
@@ -43,24 +48,37 @@ export async function buildItemFromMedia(
   mediaUrl: string,
   opts: BuildMediaOptions = {},
 ): Promise<CrawlItem | null> {
+  const mergedOpts = { ...DEFAULT_MEDIA_OPTS, ...opts }
   try {
-    let media = await fetchMedia(mediaUrl, { audio: opts.audio, autoSubs: false })
+    let media = await fetchMedia(mediaUrl, { audio: mergedOpts.audio, autoSubs: false })
     let quality: TranscriptQuality = media.zhSubtitle
       ? 'human_bilingual'
       : 'human_source_ai_translation'
 
-    // No human transcript at all — optionally retry allowing auto-captions.
-    if (!media.enSubtitle && opts.allowAutoCaptions) {
+    // No human transcript at all — retry with auto-captions (ASR).
+    if (!media.enSubtitle && mergedOpts.allowAutoCaptions) {
       logger.info({ mediaUrl }, 'mediaItem: no human transcript, retrying with auto-captions')
-      media = await fetchMedia(mediaUrl, { audio: opts.audio, autoSubs: true })
+      media = await fetchMedia(mediaUrl, { audio: mergedOpts.audio, autoSubs: true })
       quality = 'asr_source_ai_translation'
     }
 
     if (!media.enSubtitle) {
       logger.warn(
         { mediaUrl },
-        'mediaItem: no English transcript available, skipping item (description is not a transcript)',
+        'mediaItem: no English transcript available, skipping item',
       )
+      return null
+    }
+
+    // Use auto-captions for English even if human English exists, when user opted in
+    // and we have no human Chinese — for better coverage
+    if (!media.enSubtitle && mergedOpts.allowAutoCaptions) {
+      media = await fetchMedia(mediaUrl, { audio: mergedOpts.audio, autoSubs: true })
+      quality = 'asr_source_ai_translation'
+    }
+
+    if (!media.enSubtitle) {
+      logger.warn({ mediaUrl }, 'mediaItem: still no transcript after auto-captions attempt, skipping')
       return null
     }
 
@@ -76,8 +94,25 @@ export async function buildItemFromMedia(
       quality = segments.every((s) => s.zh) ? 'human_bilingual' : 'human_source_ai_translation'
     }
 
-    if (segments.some((s) => !s.zh)) {
+    // ALWAYS translate any segment missing Chinese translation.
+    // This is critical for both auto-captions and human-source items
+    // where the Chinese track was incomplete.
+    const needTranslation = segments.filter((s) => !s.zh || s.zh.trim() === '').length
+    if (needTranslation > 0) {
+      logger.info(
+        { mediaUrl, needTranslation, total: segments.length },
+        'mediaItem: translating missing segments',
+      )
       await translateSegments(segments)
+      
+      // Verify translation coverage
+      const stillMissing = segments.filter((s) => !s.zh || s.zh.trim() === '').length
+      if (stillMissing > 0) {
+        logger.warn(
+          { mediaUrl, stillMissing, total: segments.length },
+          'mediaItem: some segments still untranslated after attempt',
+        )
+      }
     }
 
     const contentText = segments.map((s) => s.en).join('\n')

@@ -4,9 +4,17 @@ import helmet from '@fastify/helmet'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
 import multipart from '@fastify/multipart'
+import { setGlobalDispatcher, Agent } from 'undici'
 import { config } from './config/index.js'
 import { errorHandler } from './common/errors.js'
 import { logger } from './common/logger.js'
+
+// Force all outbound `fetch` calls (Bilibili API + media CDN proxy) to use
+// IPv4. Inside Docker the container has no IPv6 egress, but Bilibili's CDN
+// domains resolve to AAAA records first; Node's fetch then fails with
+// ENETUNREACH and every video/proxy request 500s. Pinning the undici
+// dispatcher to `family: 4` makes connections succeed over IPv4.
+setGlobalDispatcher(new Agent({ connect: { family: 4 } }))
 
 // Routes
 import { authRoutes, buildAuthenticate } from './modules/auth/index.js'
@@ -19,6 +27,8 @@ import { dashboardRoutes } from './modules/dashboard/index.js'
 import { aiRoutes } from './modules/ai/index.js'
 import { aiProcessingModule } from './modules/ai-processing/index.js'
 import { uploadRoutes } from './modules/upload/index.js'
+import { dictionaryModule } from './modules/dictionary/index.js'
+import { mediaRoutes } from './modules/media/index.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -74,6 +84,8 @@ export async function buildApp() {
   await app.register(aiRoutes)
   await app.register(aiProcessingModule)
   await app.register(uploadRoutes)
+  await app.register(dictionaryModule)
+  await app.register(mediaRoutes)
 
   return app
 }
