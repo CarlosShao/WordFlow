@@ -4,33 +4,43 @@
     :class="{ compact: collapsed, 'is-disabled': disabled }"
     :style="{ width: currentWidth + 'px' }"
   >
-    <div class="sidebar-brand">
-      <slot name="brand">
-        <span class="brand-text">{{ brand }}</span>
-      </slot>
+    <!-- Brand + collapse toggle -->
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <slot name="brand">
+          <span class="brand-text">{{ brand }}</span>
+        </slot>
+      </div>
+      <button
+        class="sidebar-toggle"
+        :title="collapsed ? '展开侧边栏' : '收起侧边栏'"
+        @click="$emit('update:collapsed', !collapsed)"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline :points="collapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'" />
+        </svg>
+      </button>
     </div>
+
     <nav class="sidebar-nav">
       <slot />
     </nav>
+
     <div v-if="$slots.footer" class="sidebar-footer">
       <slot name="footer" />
     </div>
 
-    <!-- Collapse toggle -->
-    <button
-      class="sidebar-toggle"
-      :title="collapsed ? '展开侧边栏' : '收起侧边栏'"
-      @click="$emit('update:collapsed', !collapsed)"
-    >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline :points="collapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'" />
-      </svg>
-    </button>
+    <!-- Resize handle (right edge) -->
+    <div
+      class="sidebar-resize-handle"
+      @mousedown.prevent="startResize"
+    />
   </aside>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
+
 interface Props {
   brand?: string
   collapsed?: boolean
@@ -100,8 +110,6 @@ if (saved) {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
   background: var(--color-sidebar);
   border-right: 1px solid var(--color-sidebar-border);
   position: relative;
@@ -110,7 +118,6 @@ if (saved) {
 
 .sidebar.compact {
   width: 72px;
-  padding-inline: var(--space-2);
 }
 
 .sidebar.is-disabled {
@@ -118,57 +125,22 @@ if (saved) {
   pointer-events: none;
 }
 
-/* ── Resize handle ──────────────────────────────────────────── */
+/* ── Header (brand + collapse) ─────────────────────────────── */
 
-.sidebar-resize-handle {
-  position: absolute;
-  right: -3px;
-  top: 0;
-  bottom: 0;
-  width: 7px;
-  cursor: col-resize;
-  z-index: var(--z-raised);
-  background: transparent;
-  transition: background 0.15s ease;
-}
-
-.sidebar-resize-handle:hover,
-.sidebar-resize-handle:active {
-  background: var(--color-primary);
-  opacity: 0.5;
-}
-
-/* ── Collapse toggle ────────────────────────────────────────── */
-
-.sidebar-toggle {
+.sidebar-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: var(--space-2) 0;
-  margin-top: var(--space-2);
-  border: 1px solid var(--color-sidebar-border);
-  background: var(--color-surface-subtle);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  border-radius: var(--radius-sm);
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  gap: var(--space-2);
 }
-
-.sidebar-toggle:hover {
-  background: var(--color-surface-muted);
-  color: var(--color-text);
-  border-color: var(--color-border-strong);
-}
-
-/* ── Brand ──────────────────────────────────────────────────── */
 
 .sidebar-brand {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2);
-  margin-bottom: var(--space-2);
+  flex: 1;
+  min-width: 0;
 }
 
 .brand-text {
@@ -189,16 +161,73 @@ if (saved) {
   font-weight: 700;
 }
 
+/* ── Collapse toggle ────────────────────────────────────────── */
+
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle:hover {
+  background: var(--color-surface-muted);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+/* ── Navigation ─────────────────────────────────────────────── */
+
 .sidebar-nav {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  padding: 0 var(--space-3);
+  overflow-y: auto;
 }
 
+.compact .sidebar-nav {
+  padding: 0 var(--space-2);
+  align-items: center;
+}
+
+/* ── Footer ─────────────────────────────────────────────────── */
+
 .sidebar-footer {
-  margin-top: auto;
-  padding-top: var(--space-3);
+  padding: var(--space-3);
   border-top: 1px solid var(--color-sidebar-border);
+}
+
+.compact .sidebar-footer {
+  padding: var(--space-2);
+}
+
+/* ── Resize handle ──────────────────────────────────────────── */
+
+.sidebar-resize-handle {
+  position: absolute;
+  right: -3px;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: col-resize;
+  z-index: var(--z-raised);
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:active {
+  background: var(--color-primary);
+  opacity: 0.4;
 }
 </style>
