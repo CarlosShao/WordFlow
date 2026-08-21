@@ -45,6 +45,14 @@ src/server/src/scripts/dbg-*.ts
 .openclaw/
 .openclaw-attachments/
 
+# Agent / IDE runtime guidance files (workspace-local, never share)
+AGENTS.md
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md
+
 # Local log files (any extension)
 *-log.txt
 *-log*.txt
