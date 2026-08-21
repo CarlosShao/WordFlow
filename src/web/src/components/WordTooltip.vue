@@ -87,7 +87,7 @@ function close() {}
 <style scoped>
 .word-tooltip {
   position: fixed;
-  z-index: 1200;
+  z-index: var(--z-tooltip);
   width: 280px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);

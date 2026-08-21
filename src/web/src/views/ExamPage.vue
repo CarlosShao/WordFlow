@@ -833,7 +833,7 @@ function bookTilt(book: ExamBook): Record<string, string> {
 .book-card:hover {
   transform: perspective(900px) rotateY(-3deg) rotate(var(--book-rotate, 0deg)) translateY(-10px) scale(1.02);
   filter: drop-shadow(4px 16px 14px rgba(0,0,0,0.35));
-  z-index: 5;
+  z-index: var(--z-raised);
 }
 .book-card.placeholder { opacity: 0.08; pointer-events: none; }
 
@@ -1029,7 +1029,7 @@ function bookTilt(book: ExamBook): Record<string, string> {
   opacity: 0;
   pointer-events: none;
   transition: all 0.28s cubic-bezier(.2,.7,.2,1);
-  z-index: 10;
+  z-index: var(--z-raised);
   display: flex;
   align-items: center;
   justify-content: space-between;

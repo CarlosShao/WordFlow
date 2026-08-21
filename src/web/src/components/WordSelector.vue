@@ -351,7 +351,7 @@ onBeforeUnmount(() => {
 
 .word-popover {
   position: absolute;
-  z-index: 9999;
+  z-index: var(--z-popover);
   width: 320px;
   max-width: calc(100vw - 16px);
   background: var(--color-surface);

@@ -2555,7 +2555,7 @@ function syncArticleHighlight(time: number): void {
 .drawer-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-overlay);
   background: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: flex-end;
