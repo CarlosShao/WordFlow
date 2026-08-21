@@ -982,7 +982,7 @@ async function crawlBySource(sourceName: string) {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  z-index: 50;
+  z-index: var(--z-dropdown);
   display: flex;
   flex-direction: column;
   background: var(--color-surface);
@@ -1306,7 +1306,7 @@ async function crawlBySource(sourceName: string) {
   border-radius: var(--radius-sm);
   letter-spacing: 0.02em;
   line-height: 1.4;
-  z-index: 2;
+  z-index: var(--z-raised);
 }
 
 .badge-article {

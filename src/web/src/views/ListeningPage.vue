@@ -392,7 +392,7 @@ function skipForward() {
 .player-section {
   position: sticky;
   bottom: 0;
-  z-index: 10;
+  z-index: var(--z-sticky);
 }
 
 .player-card {

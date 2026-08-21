@@ -185,7 +185,7 @@ const wrapperStyle = computed(() => {
     top: TOPBAR_HEIGHT + 'px',
     left: stickyLeft + 'px',
     width: stickyWidth + 'px',
-    zIndex: 40,
+    zIndex: 'var(--z-sticky-under)',
   }
 })
 
@@ -481,7 +481,7 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   background: var(--bg, var(--color-surface-subtle));
-  z-index: 50;
+  z-index: var(--z-sticky);
   border-bottom: 1px solid var(--color-border);
 }
 .back-btn {
@@ -522,7 +522,7 @@ onUnmounted(() => {
 
 /* ========== 文章容器（sticky/fixed） ========== */
 .article-wrapper {
-  z-index: 40;
+  z-index: var(--z-sticky-under);
   background: var(--bg, var(--color-surface-subtle));
   transition: box-shadow 0.3s ease;
 }
@@ -761,7 +761,7 @@ onUnmounted(() => {
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.06);
   display: flex;
   justify-content: center;
-  z-index: 10;
+  z-index: var(--z-sticky);
 }
 .submit-btn {
   padding: 10px 48px;
