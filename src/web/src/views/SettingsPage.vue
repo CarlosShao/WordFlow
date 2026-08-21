@@ -535,7 +535,7 @@ function resetSettings() {
 
 .ai-mode-badge.real {
   color: #ffffff;
-  background: var(--color-success-600, #16a34a);
+  background: var(--color-success-600, var(--color-success-600));
   border-color: transparent;
 }
 
@@ -588,7 +588,7 @@ function resetSettings() {
 }
 
 .provider-role.role-primary {
-  background: var(--color-brand-50, #eef2ff);
+  background: var(--color-brand-50, var(--color-info-50));
   color: var(--color-primary);
 }
 
@@ -597,11 +597,11 @@ function resetSettings() {
 }
 
 .provider-test.test-ok {
-  color: var(--color-success-600, #16a34a);
+  color: var(--color-success-600, var(--color-success-600));
 }
 
 .provider-test.test-fail {
-  color: var(--color-danger-600, #dc2626);
+  color: var(--color-danger-600, var(--color-danger-600));
 }
 
 .provider-spacer {

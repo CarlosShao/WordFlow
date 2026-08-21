@@ -102,16 +102,16 @@ function typeLabel(type: string): string {
 
 /* Type-specific colors */
 .etymology-part.prefix {
-  border-color: #93c5fd;
-  background: #eff6ff;
+  border-color: var(--color-info-300);
+  background: var(--color-info-50);
 }
 
 .etymology-part.prefix .part-text {
-  color: #2563eb;
+  color: var(--color-info-600);
 }
 
 .etymology-part.prefix .part-type {
-  color: #3b82f6;
+  color: var(--color-info-500);
 }
 
 .etymology-part.root {
@@ -128,16 +128,16 @@ function typeLabel(type: string): string {
 }
 
 .etymology-part.suffix {
-  border-color: #86efac;
-  background: #f0fdf4;
+  border-color: var(--color-success-300);
+  background: var(--color-success-50);
 }
 
 .etymology-part.suffix .part-text {
-  color: #16a34a;
+  color: var(--color-success-600);
 }
 
 .etymology-part.suffix .part-type {
-  color: #22c55e;
+  color: var(--color-success-500);
 }
 
 .part-text {

@@ -182,7 +182,7 @@ async function updateStatus(id: string, status: 'not-reviewed' | 'reviewing' | '
 }
 
 .stat-danger { color: var(--color-danger-600); }
-.stat-warning { color: #d97706; }
+.stat-warning { color: var(--color-warning-600); }
 .stat-success { color: var(--color-success-600); }
 
 .stat-label {
@@ -258,8 +258,8 @@ async function updateStatus(id: string, status: 'not-reviewed' | 'reviewing' | '
 
 .difficulty-A1 { background: var(--color-success-50); color: var(--color-success-700); }
 .difficulty-A2 { background: var(--color-success-50); color: var(--color-success-600); }
-.difficulty-B1 { background: #fef3c7; color: #d97706; }
-.difficulty-B2 { background: #fef3c7; color: #b45309; }
+.difficulty-B1 { background: var(--color-warning-100); color: var(--color-warning-600); }
+.difficulty-B2 { background: var(--color-warning-100); color: var(--color-warning-700); }
 .difficulty-C1 { background: var(--color-danger-50); color: var(--color-danger-600); }
 .difficulty-C2 { background: var(--color-danger-50); color: var(--color-danger-700); }
 
@@ -273,7 +273,7 @@ async function updateStatus(id: string, status: 'not-reviewed' | 'reviewing' | '
 }
 
 .status-not-reviewed { background: var(--color-danger-50); color: var(--color-danger-700); }
-.status-reviewing { background: #fef3c7; color: #d97706; }
+.status-reviewing { background: var(--color-warning-100); color: var(--color-warning-600); }
 .status-mastered { background: var(--color-success-50); color: var(--color-success-700); }
 
 .mistake-date {

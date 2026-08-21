@@ -91,7 +91,7 @@ defineEmits<{
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, var(--color-primary), #71717a, var(--color-primary));
+  background: linear-gradient(90deg, var(--color-primary), var(--color-text-muted), var(--color-primary));
 }
 
 /* Header */

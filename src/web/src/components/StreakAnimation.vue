@@ -62,8 +62,8 @@ function particleStyle(i: number) {
 }
 
 .streak-celebrate {
-  background: linear-gradient(135deg, #fff7ed, #fef3c7);
-  border-color: #fbbf24;
+  background: linear-gradient(135deg, var(--color-warning-50), var(--color-warning-100));
+  border-color: var(--color-warning-400);
   box-shadow: var(--shadow-md), 0 0 16px rgba(251, 191, 36, 0.2);
   animation: glow 1.5s ease-in-out 1;
 }
@@ -101,17 +101,17 @@ function particleStyle(i: number) {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #f59e0b;
+  background: var(--color-warning-500);
   animation: burst 0.6s ease-out forwards;
   opacity: 0;
 }
 
 .burst-particle:nth-child(even) {
-  background: #ef4444;
+  background: var(--color-danger-500);
 }
 
 .burst-particle:nth-child(3n) {
-  background: #fbbf24;
+  background: var(--color-warning-400);
 }
 
 @keyframes burst {

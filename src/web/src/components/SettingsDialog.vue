@@ -800,7 +800,7 @@ function resetSettings() {
 }
 .ai-mode-badge.real {
   color: #ffffff;
-  background: var(--color-success-600, #16a34a);
+  background: var(--color-success-600, var(--color-success-600));
 }
 
 /* ── Provider 卡片 ────────────────────────────────────────────── */
@@ -845,14 +845,14 @@ function resetSettings() {
   color: var(--color-text-muted);
 }
 .provider-role.role-primary {
-  background: var(--color-brand-50, #eef2ff);
+  background: var(--color-brand-50, var(--color-info-50));
   color: var(--color-primary);
 }
 .provider-test {
   font-size: 0.75rem;
 }
-.provider-test.test-ok { color: var(--color-success-600, #16a34a); }
-.provider-test.test-fail { color: var(--color-danger-600, #dc2626); }
+.provider-test.test-ok { color: var(--color-success-600, var(--color-success-600)); }
+.provider-test.test-fail { color: var(--color-danger-600, var(--color-danger-600)); }
 .provider-spacer { flex: 1; }
 .provider-meta {
   display: flex;
