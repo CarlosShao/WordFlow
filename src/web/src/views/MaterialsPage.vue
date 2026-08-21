@@ -1439,3 +1439,9 @@ async function crawlBySource(sourceName: string) {
   .source-list { display: none; }
 }
 </style>
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .materials-page { padding: var(--space-3) !important; }
+  .material-grid { grid-template-columns: 1fr !important; }
+  .filter-bar { flex-wrap: wrap; }
+}

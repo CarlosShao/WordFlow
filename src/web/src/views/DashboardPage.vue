@@ -378,3 +378,10 @@ onMounted(() => {
   box-shadow: var(--shadow-sm);
 }
 </style>
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .dashboard-page { padding: var(--space-3) !important; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: var(--space-2) !important; }
+  .chart-container { height: 200px !important; }
+  .goal-card { padding: var(--space-3) !important; }
+}

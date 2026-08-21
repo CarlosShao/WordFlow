@@ -590,3 +590,11 @@ function onTimeUp() {
   justify-content: center;
 }
 </style>
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .practice-layout { flex-direction: column !important; }
+  .practice-main { width: 100% !important; }
+  .practice-sidebar { width: 100% !important; border-left: none !important; border-top: 1px solid var(--color-border); }
+  .option-btn { padding: var(--space-3) !important; font-size: var(--font-size-sm) !important; }
+  .option-grid { grid-template-columns: 1fr !important; }
+}

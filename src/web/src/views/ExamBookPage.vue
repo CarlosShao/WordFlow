@@ -361,3 +361,10 @@ onMounted(async () => {
   100% { background-position: -100% 0; }
 }
 </style>
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .shelf-container { padding: var(--space-3) !important; }
+  .book-shelf { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important; gap: var(--space-3) !important; }
+  .book-card { transform: none !important; }
+  .book-hover-card { display: none !important; }
+}
