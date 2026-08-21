@@ -20,6 +20,7 @@
         v-for="route in navRoutes"
         :key="route.path"
         :active="isNavActive(route)"
+        :compact="sidebarCollapsed"
         @click="navigateTo(route.path)"
       >
         {{ route.meta.title }}

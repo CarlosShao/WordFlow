@@ -23,7 +23,7 @@
     </div>
 
     <nav class="sidebar-nav">
-      <slot />
+      <slot :compact="collapsed" />
     </nav>
 
     <div v-if="$slots.footer" class="sidebar-footer">

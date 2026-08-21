@@ -1,6 +1,6 @@
 <template>
   <button
-    :class="['sidebar-item', { active, 'is-disabled': disabled }]"
+    :class="['sidebar-item', { active, 'is-disabled': disabled, compact }]"
     :disabled="disabled"
     @click="$emit('click', $event)"
   >
@@ -108,5 +108,12 @@ defineEmits<{
 .active .item-badge {
   background: var(--color-primary-foreground);
   color: var(--color-primary);
+}
+
+/* ── Compact mode ───────────────────────────────────────────── */
+
+.sidebar-item.compact {
+  justify-content: center;
+  padding: 0;
 }
 </style>
