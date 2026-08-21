@@ -1,7 +1,21 @@
 <template>
   <div class="app-layout">
+    <!-- Mobile hamburger -->
+    <button class="mobile-menu-btn" @click="toggleMobileSidebar" title="菜单">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="3" y1="18" x2="21" y2="18" />
+      </svg>
+    </button>
+
     <!-- Sidebar (only shown when authenticated) -->
-    <BaseSidebar v-if="isAuthenticated" brand="WordFlow">
+    <BaseSidebar
+      v-if="isAuthenticated"
+      brand="WordFlow"
+      :collapsed="sidebarCollapsed"
+      @update:collapsed="sidebarCollapsed = $event"
+    >
       <SidebarItem
         v-for="route in navRoutes"
         :key="route.path"
@@ -25,6 +39,15 @@
       </template>
     </BaseSidebar>
 
+    <!-- Mobile sidebar overlay -->
+    <Transition name="overlay">
+      <div
+        v-if="isAuthenticated && mobileOpen"
+        class="sidebar-overlay"
+        @click.self="mobileOpen = false"
+      />
+    </Transition>
+
     <!-- Main Content -->
     <main class="main-content">
       <router-view v-slot="{ Component, route }">
@@ -45,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { BaseSidebar, SidebarItem, BaseToast, SettingsDialog } from './components'
 import { useToast } from './composables/useToast'
@@ -64,8 +87,52 @@ const auth = useAuthStore()
 // 设置弹窗可见性
 const settingsDialogVisible = ref(false)
 
+// ── Sidebar state ──────────────────────────────────────────────
+const isMobile = ref(false)
+const sidebarCollapsed = ref(true)
+const mobileOpen = ref(false)
+
+function checkMobile() {
+  const mobile = window.innerWidth < 768
+  isMobile.value = mobile
+  // On mobile, start collapsed; on desktop, start expanded
+  if (mobile) {
+    sidebarCollapsed.value = true
+    mobileOpen.value = false
+  } else {
+    // Restore collapsed preference from localStorage on desktop
+    const saved = localStorage.getItem('sidebar-collapsed')
+    sidebarCollapsed.value = saved === 'true'
+    mobileOpen.value = false
+  }
+}
+
+function toggleMobileSidebar() {
+  if (sidebarCollapsed.value) {
+    sidebarCollapsed.value = false
+    mobileOpen.value = true
+  } else {
+    sidebarCollapsed.value = true
+    mobileOpen.value = false
+  }
+}
+
 onMounted(() => {
   initTheme()
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+
+  // Restore collapsed state on desktop
+  const saved = localStorage.getItem('sidebar-collapsed')
+  if (!isMobile.value && saved !== null) {
+    sidebarCollapsed.value = saved === 'true'
+  }
+
+  // Restore from localStorage on desktop
+  if (!isMobile.value) {
+    sidebarCollapsed.value = localStorage.getItem('sidebar-collapsed') === 'true'
+  }
+
   // 路由兼容：如果用户直接访问 /settings，自动打开弹窗并显示首页在背后
   if (route.path === '/settings' || route.path.startsWith('/settings/')) {
     settingsDialogVisible.value = true
@@ -73,12 +140,23 @@ onMounted(() => {
   }
 })
 
-// 监听路由变化，处理 /settings 直接访问
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
+
 watch(() => route.path, (p) => {
-  if (p === '/settings' || p.startsWith('/settings/')) {
+  if (p === '/settings' || route.path.startsWith('/settings/')) {
     settingsDialogVisible.value = true
     router.replace('/dashboard')
   }
+  // Close mobile sidebar on navigation
+  if (isMobile.value) {
+    mobileOpen.value = false
+  }
+})
+
+watch(sidebarCollapsed, (v) => {
+  localStorage.setItem('sidebar-collapsed', String(v))
 })
 
 const currentRoute = computed(() => route.path)
@@ -206,5 +284,54 @@ function navigateTo(path: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── Mobile ─────────────────────────────────────────────────── */
+.mobile-menu-btn {
+  display: none;
+  position: fixed;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: var(--z-sticky);
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: var(--z-overlay);
+}
+
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar-overlay {
+    display: block;
+  }
+
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: var(--z-modal);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .main-content {
+    width: 100%;
+  }
 }
 </style>
