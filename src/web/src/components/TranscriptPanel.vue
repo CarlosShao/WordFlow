@@ -173,7 +173,7 @@ const totalLabel = computed(() => props.transcriptSegments.length)
         v-for="(seg, idx) in transcriptSegments"
         :key="idx"
         :class="['transcript-block', { active: idx === activeSegmentIndex, clickable: canSeek }]"
-        @click="$emit('seek', seg, idx)"
+        @click="emit('seek', { seg, idx })"
       >
         <div v-if="(seg.start !== undefined || seg.end !== undefined) && transcriptSettings.showTimestamps" class="transcript-block-header">
           <span v-if="seg.start !== undefined" class="transcript-time">{{ formatTime(seg.start) }}</span>
@@ -332,6 +332,7 @@ const totalLabel = computed(() => props.transcriptSegments.length)
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--color-border);
   transition: background-color 0.12s ease;
+  position: relative;
 }
 .transcript-block:last-child {
   border-bottom: none;
