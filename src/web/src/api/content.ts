@@ -16,7 +16,17 @@ function normalizeContent<T extends { type?: string; coverUrl?: string }>(item: 
   }
   // Map backend coverUrl to frontend coverImage
   if (item && 'coverUrl' in item) {
-    (item as any).coverImage = item.coverUrl
+    // Bilibili's image CDN blocks cross-origin Referer (403 in the browser).
+    // Route hdslb.com covers through the backend proxy so they always load.
+    // A cache-busting `t=` param defeats stale 404/broken-image caching from
+    // the period before the proxy endpoint existed.
+    const cover = item.coverUrl
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002').replace(/\/+$/, '')
+    if (cover && /hdslb\.com|bilibili/.test(cover)) {
+      ;(item as any).coverImage = `${apiBase}/api/v1/media/cover?url=${encodeURIComponent(cover)}&t=${Date.now()}`
+    } else {
+      ;(item as any).coverImage = cover
+    }
     delete item.coverUrl
   }
   return item
@@ -30,7 +40,7 @@ export const contentApi = {
     source?: ContentSource
     category?: ContentCategory
     difficulty?: CEFRLevel
-    search?: string
+    keyword?: string
     mix?: boolean
   }): Promise<PaginatedResponse<ContentItem>> {
     const data = await client.get('/api/v1/content', {
@@ -55,6 +65,15 @@ export const contentApi = {
   async getById(id: string): Promise<ContentItem> {
     const data = await client.get(`/api/v1/content/${id}`)
     return normalizeContent(data as unknown as ContentItem)
+  },
+
+  // Lazy-load transcripts (can be 500KB+ for Bilibili videos). The main
+  // getById payload intentionally omits `segments` so the initial render is
+  // fast; this fetches just the transcript data on demand.
+  async getSegments(id: string): Promise<{ segments?: any[]; duration?: number }> {
+    const data = await client.get(`/api/v1/content/${id}/segments`)
+    const d = (data as any)?.data ?? data
+    return { segments: d?.segments ?? [], duration: d?.duration }
   },
 
   async getRecommendations(limit: number = 6): Promise<ContentItem[]> {

@@ -15,6 +15,7 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@fastify/compress": "^9.0.0",
     "@fastify/cors": "^10.0.0",
     "@fastify/helmet": "^12.0.0",
     "@fastify/multipart": "^9.4.0",
@@ -32,6 +33,9 @@
     "jsonwebtoken": "^9.0.0",
     "minio": "^8.0.0",
     "node-cron": "^3.0.3",
+    "pdf-parse": "^2.4.5",
+    "pdf2json": "^4.0.3",
+    "pdfjs-dist": "^3.11.174",
     "pino": "^9.0.0",
     "puppeteer": "^23.11.1",
     "zod": "^3.23.0"

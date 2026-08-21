@@ -36,4 +36,20 @@ export const uploadApi = {
     const result = (data as unknown as { url?: string }) ?? {}
     return result.url ?? ''
   },
+
+  proxyUrlForKey(key: string): string {
+    const base = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://localhost:3002'
+    return `${base.replace(/\/$/, '')}/api/v1/upload/file?key=${encodeURIComponent(key)}`
+  },
+
+  normalizeAvatarUrl(url: string | undefined, key?: string): string | undefined {
+    if (key) return this.proxyUrlForKey(key)
+    if (!url) return url
+    const host = (() => { try { return new URL(url).hostname } catch { return '' } })()
+    if (host === 'minio' || host === 'wordflow-minio') {
+      const k = (() => { try { const u = new URL(url); const parts = u.pathname.split('/').filter(Boolean); return parts.slice(1).join('/') } catch { return '' } })()
+      if (k) return this.proxyUrlForKey(k)
+    }
+    return url
+  },
 }

@@ -9,6 +9,7 @@ export interface UserProfile {
   username: string
   email?: string
   avatar?: string
+  avatarUrl?: string
   level: CEFRLevel
   joinDate: string
   streak: number

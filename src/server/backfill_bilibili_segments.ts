@@ -16,6 +16,7 @@
 import { getPrisma } from './src/common/prisma.js'
 import { config } from './src/config/index.js'
 import { logger } from './src/common/logger.js'
+import { translateSegments } from './src/modules/crawler/translator.js'
 
 const COOKIE = config.bilibiliCookie || ''
 const UA =
@@ -212,6 +213,15 @@ async function main() {
         logger.warn({ id: r.id, bvid }, 'no subtitle data from API')
         fail++
         continue
+      }
+      // Time-overlap alignment leaves zh='' on EN cues with no overlapping
+      // ZH cue (common for short interjections). Run them through the AI
+      // translator right away instead of leaving permanent gaps that show
+      // up as （暂无对应翻译） in the bilingual reading view.
+      const emptyZh = segs.filter((s) => s.en.trim() !== '' && !s.zh.trim()).length
+      if (emptyZh > 0) {
+        logger.info({ id: r.id, emptyZh }, 'backfill_bilibili_segments: translating uncovered cues')
+        await translateSegments(segs)
       }
       const content = segs.map((s) => s.en).filter(Boolean).join('\n\n')
       const translation = segs.map((s) => s.zh).filter(Boolean).join('\n\n')

@@ -66,6 +66,7 @@ export async function lookupDictcn(word: string): Promise<DictionaryEntry | null
     examples: raw.examples,
     synonyms: raw.synonyms,
     antonyms: raw.antonyms,
+    relatedWords: [],
     exams: [],
     source: 'dictcn',
   }

@@ -19,7 +19,7 @@ import { discoverTedTalkUrls } from './strategies/ted.js'
 const createSourceSchema = z.object({
   name: z.string().min(1).max(200),
   url: z.string().url(),
-  type: z.enum(['RSS', 'YOUTUBE', 'TWITTER', 'WEB', 'PUPPETEER', 'TED', 'VOA', 'PODCAST', 'IELTS', 'TOEFL']),
+  type: z.enum(['RSS', 'YOUTUBE', 'TWITTER', 'WEB', 'PUPPETEER', 'TED', 'VOA', 'PODCAST', 'IELTS', 'TOEFL', 'BILIBILI']),
   contentType: z.enum(['ARTICLE', 'VIDEO', 'PODCAST']),
   difficulty: z.enum(['BEGINNER', 'ELEMENTARY', 'INTERMEDIATE', 'UPPER_INTERMEDIATE', 'ADVANCED', 'PROFICIENT']),
   crawlInterval: z.number().int().nonnegative().optional(),
@@ -29,7 +29,7 @@ const createSourceSchema = z.object({
 const updateSourceSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   url: z.string().url().optional(),
-  type: z.enum(['RSS', 'YOUTUBE', 'TWITTER', 'WEB', 'PUPPETEER', 'TED', 'VOA', 'PODCAST', 'IELTS', 'TOEFL']).optional(),
+  type: z.enum(['RSS', 'YOUTUBE', 'TWITTER', 'WEB', 'PUPPETEER', 'TED', 'VOA', 'PODCAST', 'IELTS', 'TOEFL', 'BILIBILI']).optional(),
   contentType: z.enum(['ARTICLE', 'VIDEO', 'PODCAST']).optional(),
   difficulty: z.enum(['BEGINNER', 'ELEMENTARY', 'INTERMEDIATE', 'UPPER_INTERMEDIATE', 'ADVANCED', 'PROFICIENT']).optional(),
   crawlInterval: z.number().int().nonnegative().optional(),

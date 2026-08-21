@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
+import { logger } from './logger.js'
 
 export const ErrorType = {
   VALIDATION: 'VALIDATION_ERROR',
@@ -39,6 +40,7 @@ export async function errorHandler(
   }
 
   // Unexpected error
+  logger.error({ err: { message: error.message, stack: error.stack, name: error.name } }, 'Unhandled error')
   return reply.status(500).send({
     success: false,
     error: {

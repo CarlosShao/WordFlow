@@ -1,27 +1,107 @@
 /**
  * LLM service wrapper for AI processing module.
  *
- * Uses OpenAI-compatible API (DeepSeek / Moonshot / OpenAI).
- * Follows the same pattern as src/modules/ai/index.ts but with
- * correct config paths (config.ai.apiBaseUrl / apiKey / model).
+ * Providers come from the `ai_providers` DB table (shared source of truth
+ * for the backend data pipeline AND the frontend settings page — see
+ * GET/PUT /api/v1/ai/providers). Candidates are tried in `priority` order;
+ * on 429 / timeout / 5xx the failing provider gets a 60s cooldown and the
+ * next one takes over immediately (the rotation strategy validated by
+ * scripts/kp_crawl.py).
+ *
+ * Backward compatibility: if the table is empty or the DB is unreachable,
+ * callLlm falls back to the AI_* environment variables exactly like before,
+ * so host-side data scripts (translate_podcast.ts, backfill_missing_zh.ts,
+ * the crawler translator) keep working without any change.
  */
 
 import { config } from '../../config/index.js'
 import { logger } from '../../common/logger.js'
+import { getPrisma } from '../../common/prisma.js'
 
-export async function callLlm(messages: { role: string; content: string }[], opts?: { maxTokens?: number; temperature?: number }): Promise<string> {
-  const response = await fetch(`${config.ai.apiBaseUrl}/chat/completions`, {
+export interface LlmProvider {
+  id: string
+  name: string
+  baseUrl: string
+  apiKey: string
+  model: string
+}
+
+function envProvider(): LlmProvider {
+  return {
+    id: 'env',
+    name: 'env',
+    baseUrl: config.ai.apiBaseUrl,
+    apiKey: config.ai.apiKey,
+    model: config.ai.model,
+  }
+}
+
+// ── provider list cache (30s TTL; invalidated by the admin API on write) ──
+const PROVIDER_CACHE_TTL_MS = 30_000
+const COOLDOWN_MS = 60_000
+let providerCache: { providers: LlmProvider[]; expiresAt: number } | null = null
+let providerCacheLoading: Promise<LlmProvider[]> | null = null
+const cooldownUntil = new Map<string, number>()
+
+/** Called by the providers admin routes after any write. */
+export function invalidateLlmProviderCache(): void {
+  providerCache = null
+}
+
+async function loadProviders(): Promise<LlmProvider[]> {
+  if (providerCache && providerCache.expiresAt > Date.now()) {
+    return providerCache.providers
+  }
+  if (providerCacheLoading) return providerCacheLoading
+  providerCacheLoading = (async () => {
+    let providers: LlmProvider[] = []
+    try {
+      const rows = await getPrisma().aiProvider.findMany({
+        where: { enabled: true },
+        orderBy: { priority: 'asc' },
+      })
+      providers = rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        baseUrl: r.baseUrl,
+        apiKey: r.apiKey,
+        model: r.model,
+      }))
+    } catch (err) {
+      // Missing table / DB down: keep serving via env fallback.
+      logger.warn(
+        { err: (err as Error).message },
+        'llm: failed to load ai_providers, falling back to env config',
+      )
+    }
+    providerCache = { providers, expiresAt: Date.now() + PROVIDER_CACHE_TTL_MS }
+    return providers
+  })()
+  try {
+    return await providerCacheLoading
+  } finally {
+    providerCacheLoading = null
+  }
+}
+
+async function callWithProvider(
+  provider: LlmProvider,
+  messages: { role: string; content: string }[],
+  opts?: { maxTokens?: number; temperature?: number; signal?: AbortSignal },
+): Promise<string> {
+  const response = await fetch(`${provider.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.ai.apiKey}`,
+      'Authorization': `Bearer ${provider.apiKey}`,
     },
     body: JSON.stringify({
-      model: config.ai.model,
+      model: provider.model,
       messages,
       temperature: opts?.temperature ?? 0.7,
       max_tokens: opts?.maxTokens ?? 4096,
     }),
+    signal: opts?.signal,
   })
 
   if (!response.ok) {
@@ -38,32 +118,60 @@ export async function callLlm(messages: { role: string; content: string }[], opt
       }
     }>
   }
-  
+
   const msg = data.choices[0]?.message
   if (!msg) return ''
-  
+
   // For reasoning models, content may be in different fields
   // Priority: content > reasoning (last part after thinking) > reasoning_content
   if (msg.content && msg.content.trim()) {
     return msg.content.trim()
   }
-  
+
   // If content is empty but reasoning exists, extract the final answer
   // The reasoning field sometimes contains the answer after thinking
   if (msg.reasoning && msg.reasoning.trim()) {
     const reasoning = msg.reasoning.trim()
-    // Try to find the last sentence as the answer
-    // For translations, the answer is typically at the end
     logger.warn({ reason: 'content empty, using reasoning' }, 'callLlm: using reasoning as fallback')
     return reasoning
   }
-  
+
   if (msg.reasoning_content && msg.reasoning_content.trim()) {
     logger.warn({ reason: 'content empty, using reasoning_content' }, 'callLlm: using reasoning_content as fallback')
     return msg.reasoning_content.trim()
   }
-  
+
   return ''
+}
+
+export async function callLlm(messages: { role: string; content: string }[], opts?: { maxTokens?: number; temperature?: number; signal?: AbortSignal }): Promise<string> {
+  const dbProviders = await loadProviders()
+  const base = dbProviders.length > 0 ? dbProviders : [envProvider()]
+
+  // Skip cooled-down providers unless EVERY candidate is cooling (then the
+  // cooldown is clearly a provider-wide outage — better to retry than fail).
+  const now = Date.now()
+  let pool = base.filter((p) => (cooldownUntil.get(p.id) ?? 0) <= now)
+  if (pool.length === 0) pool = base
+
+  let lastErr: unknown
+  for (const provider of pool) {
+    try {
+      return await callWithProvider(provider, messages, opts)
+    } catch (err) {
+      lastErr = err
+      const message = (err as Error).message ?? String(err)
+      // Caller-supplied AbortSignal (e.g. translator 120s timeout) must not
+      // trigger a provider switch — the whole operation was cancelled.
+      if (opts?.signal?.aborted) throw err
+      cooldownUntil.set(provider.id, Date.now() + COOLDOWN_MS)
+      logger.warn(
+        { provider: provider.name, model: provider.model, err: message.slice(0, 160) },
+        'llm: provider failed, switching to next',
+      )
+    }
+  }
+  throw lastErr ?? new Error('llm: no provider available')
 }
 
 /**

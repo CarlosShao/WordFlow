@@ -10,7 +10,7 @@
  */
 
 import { logger } from '../../common/logger.js'
-import type { DictionaryEntry, Definition, Example, Phonetic } from './types.js'
+import type { DictionaryEntry, Definition, Example, Phonetic, RelatedWord } from './types.js'
 
 const YUDAO_API = 'https://dict.youdao.com/jsonapi'
 const AUDIO_BASE = 'https://dict.youdao.com/dictvoice'
@@ -57,6 +57,14 @@ interface YoudaoPayload {
     }
   }
   syno?: { synos?: Array<{ syno?: { ws?: Array<{ w?: string }> } }> }
+  rel_word?: {
+    rels?: Array<{
+      rel?: {
+        pos?: string
+        words?: Array<{ word?: string; tran?: string }>
+      }
+    }>
+  }
   blng_sents_part?: { 'sentence-pair'?: Array<{ 'sentence-eng'?: string; 'sentence-translation'?: string }> }
 }
 
@@ -149,6 +157,21 @@ export async function lookupYoudao(word: string): Promise<DictionaryEntry | null
     }
   }
 
+  // Derived word forms from rel_word (派生词): happy → happily/happiness
+  const relatedWords: RelatedWord[] = []
+  const relatedSeen = new Set<string>()
+  for (const rel of payload.rel_word?.rels ?? []) {
+    const pos = rel.rel?.pos ?? ''
+    for (const w of rel.rel?.words ?? []) {
+      const word = w.word?.trim()
+      if (!word) continue
+      const key = `${pos}|${word}`
+      if (relatedSeen.has(key)) continue
+      relatedSeen.add(key)
+      relatedWords.push({ word, pos, translation: w.tran?.trim() || undefined })
+    }
+  }
+
   const examples: Example[] = []
   for (const pair of payload.blng_sents_part?.['sentence-pair'] ?? []) {
     const en = stripHtml(pair['sentence-eng'] ?? '')
@@ -164,6 +187,7 @@ export async function lookupYoudao(word: string): Promise<DictionaryEntry | null
     examples,
     synonyms,
     antonyms: [],
+    relatedWords,
     exams: payload.ec?.exam_type ?? [],
     source: 'youdao',
   }

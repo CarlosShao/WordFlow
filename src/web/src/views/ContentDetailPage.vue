@@ -90,6 +90,16 @@
       <button @click="fetchContent">重试</button>
     </div>
 
+    <!-- Initial loading overlay: shown while the detail payload is still
+         arriving. Surfaces a plain-language hint (e.g. which step is slow) so
+         a multi-second Bilibili stream resolution reads as "working", not
+         "hung / crashed". -->
+    <div v-if="loading && !contentDetail" class="detail-loading">
+      <div class="spinner"></div>
+      <p class="detail-loading-text">{{ loadingHint || '正在加载内容…' }}</p>
+      <p class="detail-loading-sub">视频内容较大时加载会稍慢，请稍候</p>
+    </div>
+
     <!-- Main Content -->
     <main v-if="contentDetail" class="detail-main">
       <!-- Video Player (for VIDEO type) -->
@@ -98,7 +108,8 @@
           <!-- Bilibili native video via direct CDN URL -->
           <div v-if="isBiliVideo && isBiliStreamLoading" class="video-loading">
             <div class="spinner"></div>
-            <span>正在加载高清视频流...</span>
+            <span>视频较大，正在解析播放地址，请稍候…</span>
+            <span class="loading-sub">B站视频需要先向服务器请求播放链接，这一步通常需要几秒钟</span>
           </div>
           <div v-else-if="isBiliVideo && biliStreamError" class="video-error">
             <p>{{ biliStreamError }}</p>
@@ -254,29 +265,27 @@
             </div>
           </div>
           
-          <div v-show="activeContentTab === 'transcript' || !hasArticleContent" class="transcript-body" ref="transcriptBodyRef" :style="{ fontSize: transcriptSettings.fontSize + 'px' }">
+          <div v-show="activeContentTab === 'transcript' || !hasArticleContent" class="transcript-body" ref="transcriptBodyRef" :style="{ fontSize: transcriptSettings.fontSize + 'px' }" @mouseup="onTranscriptMouseUp">
+            <div v-if="transcriptSegments.length === 0 && !loading" class="transcript-empty">
+              <template v-if="segmentsLoading">
+                <div class="spinner spinner-sm"></div>
+                <span>视频字幕较多，正在加载字幕数据…</span>
+              </template>
+              <template v-else>字幕加载中…</template>
+            </div>
             <div
               v-for="(seg, idx) in transcriptSegments"
               :key="idx"
               :class="['transcript-block', { active: idx === activeSegmentIndex, clickable: canSeek }]"
               @click="seekToSegment(seg, idx)"
             >
-              <!-- Liquid drop transition overlay on the active subtitle -->
-              <LiquidTextTransition
-                v-if="idx === activeSegmentIndex"
-                :text="seg.en || ''"
-                :trigger-key="transitionTick"
-                :active="idx === activeSegmentIndex"
-              />
               <div v-if="(seg.start !== undefined || seg.end !== undefined) && transcriptSettings.showTimestamps" class="transcript-block-header">
                 <span v-if="seg.start !== undefined" class="transcript-time">{{ formatTime(seg.start) }}</span>
                 <span v-if="seg.end !== undefined && seg.start !== undefined" class="transcript-time duration-hint">
                   {{ formatTime(seg.end - seg.start) }}
                 </span>
               </div>
-              <WordSelector class="transcript-en" @add-vocabulary="handleAddVocabulary">
-                {{ seg.en }}
-              </WordSelector>
+              <div class="transcript-en">{{ seg.en }}</div>
               <div :class="['transcript-zh', { 'no-translate': !seg.zh }]" :style="{ backgroundColor: `rgba(143, 155, 179, ${transcriptSettings.bgOpacity})` }">
                 {{ seg.zh || '（暂无对应翻译）' }}
               </div>
@@ -284,68 +293,41 @@
           </div>
 
           <!-- Article tab body (placed in the same panel so toggling the
-               tab switches content without re-scrolling). Rendered as
-               paragraph-level bilingual reading: each English paragraph
-               (multiple sentences) followed by its translated paragraph,
-               with sentence-level hover effects. -->
+               tab switches content without re-scrolling). Renders aligned
+               en/zh sentence pairs via the shared BilingualArticlePanel. -->
           <div v-show="activeContentTab === 'article' && hasArticleContent" class="article-panel">
             <div class="article-body">
-              <div class="bilingual-text">
-                <template v-if="getBilingualParagraphs().length > 0">
-                  <div
-                    v-for="(para, idx) in getBilingualParagraphs()"
-                    :key="idx"
-                    :class="['bilingual-block', { 'block-active': activeParaIdx === idx }]"
-                  >
-                    <WordSelector class="bi-en" @add-vocabulary="handleAddVocabulary">
-                      <span
-                        v-for="(sent, si) in splitSentences(para.en)"
-                        :key="si"
-                        :class="['sentence', { 'sentence-active': activeParaIdx === idx && activeSentenceIdx === si }]"
-                        @mouseenter="onSentenceEnter(idx, si)"
-                        @mouseleave="onSentenceLeave"
-                      >{{ sent }}</span>
-                    </WordSelector>
-                    <div :class="['bi-zh', { 'no-translate': !para.zh }]">
-                      <template v-if="splitZhSentences(para.zh).length === splitSentences(para.en).length">
-                        <span
-                          v-for="(zs, zi) in splitZhSentences(para.zh)"
-                          :key="zi"
-                          :class="['zh-sentence', { 'zh-sentence-active': activeParaIdx === idx && activeSentenceIdx === zi }]"
-                        >{{ zs }}</span>
-                      </template>
-                      <template v-else>
-                        <!-- Sentence counts differ (e.g. translator merged
-                             two sentences into one). Fall back to whole
-                             paragraph highlight so the user still gets
-                             feedback for whichever English sentence they
-                             hover. -->
-                        <span
-                          :class="['zh-sentence', { 'zh-sentence-active': activeParaIdx === idx }]"
-                        >{{ para.zh || '（暂无对应翻译）' }}</span>
-                      </template>
-                    </div>
-                  </div>
-                </template>
-                <div v-else class="translation-hint">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 16v-4M12 8h.01"/>
-                  </svg>
-                  <span>双语对照需要完整的英文原文和中文翻译，当前数据不足。</span>
-                </div>
-              </div>
+              <BilingualArticlePanel
+                :paragraphs="bilingualParagraphs"
+                :active-para-idx="activeParaIdx"
+                :active-sentence-idx="activeSentenceIdx"
+                @sentence-enter="onSentenceEnter"
+                @sentence-leave="onSentenceLeave"
+                @add-vocabulary="handleAddVocabulary"
+              />
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Audio Player (for PODCAST type) -->
-      <section v-if="normalizedType === 'podcast' && fixedAudioUrl" class="media-section audio-section">
-        <div class="audio-player">
-          <audio controls :src="fixedAudioUrl" preload="metadata" ref="audioRef" @timeupdate="onMediaTimeUpdate">
+      <!-- Audio Player (for PODCAST type) — the section renders even without
+           a usable audio URL so the transcript/bilingual panels below stay
+           reachable; the player itself is replaced by a hint when the URL is
+           missing or is not actually audio (a crawler bug stored cover-image
+           URLs in audioUrl for some feeds). -->
+      <section v-if="normalizedType === 'podcast'" class="media-section audio-section">
+        <div v-if="usableAudioUrl" class="audio-player">
+          <audio controls :src="usableAudioUrl" preload="metadata" ref="audioRef" @timeupdate="onMediaTimeUpdate">
             您的浏览器不支持音频播放
           </audio>
+        </div>
+        <div v-else class="audio-unavailable">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 5 6 9H2v6h4l5 4V5z"/>
+            <line x1="23" y1="9" x2="17" y2="15"/>
+            <line x1="17" y1="9" x2="23" y2="15"/>
+          </svg>
+          <span>该播客暂无可用的音频，仅显示文字内容</span>
         </div>
         <!-- Full bilingual transcript synced with audio playback -->
         <div v-if="hasTranscriptSegments" class="transcript-panel">
@@ -423,37 +405,70 @@
             </div>
           </div>
           
-          <div v-show="activeContentTab === 'transcript' || !hasArticleContent" class="transcript-body" ref="transcriptBodyRef" :style="{ fontSize: transcriptSettings.fontSize + 'px' }">
+          <div v-show="activeContentTab === 'transcript' || !hasArticleContent" class="transcript-body" ref="transcriptBodyRef" :style="{ fontSize: transcriptSettings.fontSize + 'px' }" @mouseup="onTranscriptMouseUp">
+            <div v-if="transcriptSegments.length === 0 && !loading" class="transcript-empty">
+              <template v-if="segmentsLoading">
+                <div class="spinner spinner-sm"></div>
+                <span>视频字幕较多，正在加载字幕数据…</span>
+              </template>
+              <template v-else>字幕加载中…</template>
+            </div>
             <div
               v-for="(seg, idx) in transcriptSegments"
               :key="idx"
               :class="['transcript-block', { active: idx === activeSegmentIndex, clickable: canSeek }]"
               @click="seekToSegment(seg, idx)"
             >
-              <!-- Liquid drop transition overlay on the active subtitle -->
-              <LiquidTextTransition
-                v-if="idx === activeSegmentIndex"
-                :text="seg.en || ''"
-                :trigger-key="transitionTick"
-                :active="idx === activeSegmentIndex"
-              />
               <div v-if="(seg.start !== undefined || seg.end !== undefined) && transcriptSettings.showTimestamps" class="transcript-block-header">
                 <span v-if="seg.start !== undefined" class="transcript-time">{{ formatTime(seg.start) }}</span>
                 <span v-if="seg.end !== undefined && seg.start !== undefined" class="transcript-time duration-hint">
                   {{ formatTime(seg.end - seg.start) }}
                 </span>
               </div>
-              <WordSelector class="transcript-en" @add-vocabulary="handleAddVocabulary">
-                {{ seg.en }}
-              </WordSelector>
+              <div class="transcript-en">{{ seg.en }}</div>
               <div :class="['transcript-zh', { 'no-translate': !seg.zh }]" :style="{ backgroundColor: `rgba(143, 155, 179, ${transcriptSettings.bgOpacity})` }">
                 {{ seg.zh || '（暂无对应翻译）' }}
               </div>
             </div>
           </div>
 
+          <!-- Article tab body (same bilingual reading panel as the video
+               section above — the podcast tab bar's 双语全文 button previously
+               had no matching body here, so clicking it showed nothing). -->
+          <div v-show="activeContentTab === 'article' && hasArticleContent" class="article-panel">
+            <div class="article-body">
+              <BilingualArticlePanel
+                :paragraphs="bilingualParagraphs"
+                :active-para-idx="activeParaIdx"
+                :active-sentence-idx="activeSentenceIdx"
+                @sentence-enter="onSentenceEnter"
+                @sentence-leave="onSentenceLeave"
+                @add-vocabulary="handleAddVocabulary"
+              />
+            </div>
+          </div>
+
         </div>
         <p v-if="!hasTranscriptSegments" class="audio-hint">以下是播客的文字记录（Show Notes），可能与音频内容不完全对应</p>
+      </section>
+
+      <!-- Standalone article reading section: shows the bilingual body when
+           neither the video nor the podcast player panel is rendering it.
+           Plain ARTICLE content (e.g. RSS news, TED-ED texts) previously had
+           NO body section at all — only the summary rendered. -->
+      <section v-if="showStandaloneArticle" class="media-section article-reading-section">
+        <div class="article-panel article-panel-standalone">
+          <div class="article-body">
+            <BilingualArticlePanel
+              :paragraphs="bilingualParagraphs"
+              :active-para-idx="activeParaIdx"
+              :active-sentence-idx="activeSentenceIdx"
+              @sentence-enter="onSentenceEnter"
+              @sentence-leave="onSentenceLeave"
+              @add-vocabulary="handleAddVocabulary"
+            />
+          </div>
+        </div>
       </section>
 
       <!-- Summary -->
@@ -483,31 +498,45 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue'
+import { ref, shallowRef, reactive, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Skeleton, AIQuestionGenerator } from '../components'
 import { contentApi } from '../api/content'
 import { mediaApi } from '../api/media'
 import { vocabularyApi } from '../api/vocabulary'
-import WordSelector from '../components/WordSelector.vue'
-import LiquidTextTransition from '../components/LiquidTextTransition.vue'
-import type { ContentType, CEFRLevel } from '../types'
+import BilingualArticlePanel from '../components/BilingualArticlePanel.vue'
+import { formatTime, getTypeLabel, getDifficultyLabel } from '../utils/format'
+import {
+  buildBilingualParagraphs,
+} from '../utils/text'
+import type { BilingualParagraph } from '../utils/text'
+import {
+  isEmbedUrl,
+  getEmbedUrlWithCaptions,
+  fixMediaUrl,
+  extractTedSlug,
+} from '../utils/media'
 
 const route = useRoute()
 const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
-const contentDetail = ref<any>(null)
+// Human-readable description of what is currently being fetched, shown in the
+// loading overlay so the user understands why the page is not ready yet
+// (e.g. "视频较大，正在解析播放地址…"). Without this the long Bilibili stream
+// resolution looks like a hang/crash.
+const loadingHint = ref('')
+// Use shallowRef to avoid deep-reactive overhead on large payloads (~950KB for
+// Key & Peele / SNL videos with content + translation + segments).  Only the
+// reference itself is tracked; nested properties stay raw, which is fine because
+// we never mutate them in-place.
+const contentDetail = shallowRef<any>(null)
 const audioRef = ref<HTMLAudioElement | null>(null)
 const videoRef = ref<HTMLVideoElement | null>(null)
 const activeTab = ref<'original' | 'translation' | 'bilingual'>('original')
 const transcriptBodyRef = ref<HTMLElement | null>(null)
 const activeSegmentIndex = ref(-1)
-
-// Increments every time the active subtitle changes, so the liquid-text
-// transition knows when to re-run on the newly active block.
-const transitionTick = ref(0)
 
 // ── Transcript display settings ──
 const transcriptSettings = reactive({
@@ -527,19 +556,6 @@ function onSentenceEnter(paraIdx: number, sentIdx: number): void {
   activeParaIdx.value = paraIdx
   activeSentenceIdx.value = sentIdx
 }
-
-// When playback advances to the next subtitle, bump the tick so the new
-// active block plays its liquid-drop transition once. If subtitles change
-// faster than the animation can finish (e.g. a rapid-fire line), throttle:
-// only animate when at least ~1.2s has passed since the last trigger.
-let lastTransitionAt = 0
-watch(activeSegmentIndex, (idx) => {
-  if (idx < 0) return
-  const now = performance.now()
-  if (now - lastTransitionAt < 1200) return
-  lastTransitionAt = now
-  transitionTick.value++
-})
 
 function onSentenceLeave(): void {
   activeParaIdx.value = -1
@@ -668,6 +684,9 @@ const STREAM_REFRESH_COOLDOWN_MS = 5000
 
 // Parsed transcript segments with timestamps for sync
 const transcriptSegments = ref<Array<{ start?: number; end?: number; en: string; zh: string }>>([])
+// Whether the transcript payload is still being fetched lazily. Drives a real
+// spinner + explanation in the transcript panel instead of a static placeholder.
+const segmentsLoading = ref(false)
 
 const hasTranscriptSegments = computed(() => transcriptSegments.value.length > 0)
 const canSeek = computed(() => transcriptSegments.value.some(s => s.start !== undefined))
@@ -725,6 +744,7 @@ async function fetchContent() {
   isFetchingContent = true
 
   loading.value = true
+  loadingHint.value = '正在加载内容信息…'
   error.value = ''
 
   // Reset stream refresh guards for new content
@@ -736,15 +756,55 @@ async function fetchContent() {
     contentDetail.value = res
     parseTranscriptSegments()
 
-    // If this is a Bilibili video, fetch the native video stream
+    // Kick off the (potentially slow) Bilibili stream resolution and the
+    // (potentially large) transcript fetch IN PARALLEL. Previously the
+    // transcript was gated behind `await fetchBilibiliStream`, so both long
+    // tasks ran sequentially and the page looked frozen. Fire both at once and
+    // let each render into its own panel as it arrives.
+    const tasks: Promise<void>[] = []
     if (isBiliVideo.value && !biliStreamUrl.value) {
-      await fetchBilibiliStream()
+      tasks.push(
+        fetchBilibiliStream(true, '视频较大，正在解析播放地址…') as unknown as Promise<void>
+      )
     }
+    tasks.push(loadTranscriptSegments(route.params.id as string))
+    await Promise.all(tasks)
   } catch (err: any) {
     error.value = err.message || '加载内容失败'
   } finally {
     loading.value = false
+    loadingHint.value = ''
     isFetchingContent = false
+  }
+}
+
+/**
+ * Lazily fetch the transcript segments for the current content.
+ *
+ * The main detail API deliberately omits `segments` (can be 500KB+), so we
+ * load it here in a separate request. We merge the fetched segments into the
+ * existing contentDetail so the transcript panel renders once it arrives,
+ * while the title/player are already on screen.
+ */
+async function loadTranscriptSegments(id: string): Promise<void> {
+  segmentsLoading.value = true
+  try {
+    const { segments, duration } = await contentApi.getSegments(id)
+    const current = contentDetail.value
+    if (!current || current.id !== id) return // user navigated away
+    // Shallow-merge the freshly loaded segments into the already-rendered
+    // detail object. Because contentDetail is a shallowRef, assigning a new
+    // object triggers reactivity for the transcript panel.
+    contentDetail.value = {
+      ...current,
+      segments: segments ?? current.segments,
+      duration: duration ?? current.duration,
+    }
+    parseTranscriptSegments()
+  } catch (err) {
+    console.warn('[ContentDetail] failed to load segments:', err)
+  } finally {
+    segmentsLoading.value = false
   }
 }
 
@@ -752,7 +812,7 @@ async function fetchContent() {
  * Fetch Bilibili video stream URL via backend API.
  * Returns a direct MP4 URL that can be played with native <video> element.
  */
-async function fetchBilibiliStream(showLoading = true): Promise<void> {
+async function fetchBilibiliStream(showLoading = true, hint?: string): Promise<void> {
   if (isFetchingStream) return  // Prevent duplicate calls
   isFetchingStream = true
 
@@ -764,6 +824,7 @@ async function fetchBilibiliStream(showLoading = true): Promise<void> {
 
   if (showLoading) {
     isBiliStreamLoading.value = true
+    loadingHint.value = hint || '正在解析视频播放地址…'
   }
   biliStreamError.value = ''
 
@@ -785,6 +846,11 @@ async function fetchBilibiliStream(showLoading = true): Promise<void> {
   } finally {
     if (showLoading) {
       isBiliStreamLoading.value = false
+      // Only clear the hint if it's still ours (a later task may have set a
+      // more specific message meanwhile).
+      if (loadingHint.value && (loadingHint.value === (hint || '正在解析视频播放地址…'))) {
+        loadingHint.value = ''
+      }
     }
     isFetchingStream = false
   }
@@ -835,31 +901,6 @@ function goBack() {
   router.push('/content')
 }
 
-function getTypeLabel(type: ContentType): string {
-  const labels: Record<ContentType, string> = {
-    article: '文章',
-    video: '视频',
-    podcast: '播客'
-  }
-  return labels[type] || type
-}
-
-function getDifficultyLabel(difficulty?: string): string {
-  if (!difficulty) return ''
-  const map: Record<string, string> = {
-    BEGINNER: 'A1 入门', ELEMENTARY: 'A2 基础',
-    INTERMEDIATE: 'B1 中级', UPPER_INTERMEDIATE: 'B2 中高级',
-    ADVANCED: 'C1 高级', PROFICIENT: 'C2 精通',
-  }
-  return map[difficulty] || difficulty
-}
-
-function isEmbedUrl(url: string): boolean {
-  // Bilibili URLs are now handled via native video player, not iframe
-  if (url.includes('bilibili.com')) return false
-  return url.includes('youtube.com/embed') || url.includes('player.vimeo') || url.includes('ted.com/talks/embed') || url.includes('embed.ted.com/talks')
-}
-
 function getContentTabLabel(tab: 'original' | 'translation' | 'bilingual'): string {
   const type = normalizedType.value
   if (type === 'podcast') {
@@ -883,12 +924,6 @@ function getContentTabLabel(tab: 'original' | 'translation' | 'bilingual'): stri
   }
 }
 
-function getEmbedUrlWithCaptions(url: string): string {
-  if (!url.includes('youtube.com')) return url
-  const separator = url.includes('?') ? '&' : '?'
-  return `${url}${separator}cc_load_policy=1&cc_lang_pref=zh-CN`
-}
-
 /**
  * Parse segments from content detail, preserving timestamps if available.
  * Falls back to proportional distribution when timestamps are missing (legacy data).
@@ -904,6 +939,13 @@ function parseTranscriptSegments(): void {
 
   let segments = data.segments
   const duration = data.duration || 0
+
+  // Guard: cap the number of rendered segments. Some legacy Bilibili backfills
+  // produced 6000+ ultra-fine cues (per-word) which would freeze the UI when
+  // rendered as 6000+ DOM nodes + 6000+ WordSelector components. We aggregate
+  // adjacent cues until under the cap, preserving readability.
+  const MAX_SEGMENTS = 1200
+  const originalCount = Array.isArray(segments) ? segments.length : 0
 
   // Case 1: Has segments with timestamps — use them directly
   if (Array.isArray(segments) && segments.length > 0) {
@@ -924,12 +966,19 @@ function parseTranscriptSegments(): void {
         if (typeof v !== 'number') return undefined
         return looksLikeSeconds ? v : v / 1000
       }
-      transcriptSegments.value = segments.map((s: any) => ({
+
+      const mapped = segments.map((s: any) => ({
         start: toSec(s.start),
         end: toSec(s.end),
         en: s.en || '',
         zh: s.zh || '',
       }))
+
+      // Aggregate if over the cap (e.g. 6000 cues → ~1200 merged blocks)
+      transcriptSegments.value =
+        mapped.length > MAX_SEGMENTS
+          ? aggregateSegments(mapped, MAX_SEGMENTS)
+          : mergeTinySegments(mapped)
       activeSegmentIndex.value = -1
       return
     }
@@ -939,12 +988,16 @@ function parseTranscriptSegments(): void {
     if (hasContent && segments.length >= 3) {
       // Use proportional distribution across duration
       const segDuration = duration > 0 ? duration / segments.length : 5
-      transcriptSegments.value = segments.map((s: any, i: number) => ({
+      const mapped = segments.map((s: any, i: number) => ({
         start: i * segDuration,
         end: (i + 1) * segDuration,
         en: s.en || '',
         zh: s.zh || '',
       }))
+      transcriptSegments.value =
+        mapped.length > MAX_SEGMENTS
+          ? aggregateSegments(mapped, MAX_SEGMENTS)
+          : mapped
       activeSegmentIndex.value = -1
       return
     }
@@ -979,6 +1032,64 @@ function parseTranscriptSegments(): void {
   // Case 4: Nothing usable
   transcriptSegments.value = []
   activeSegmentIndex.value = -1
+}
+
+/**
+ * Merge segments shorter than ~300ms into their predecessor so the highlight
+ * never flashes past a subtitle too fast to read. Timestamps here are already
+ * in seconds (frontend unit). Only merges when both the tiny segment and its
+ * predecessor carry valid timestamps.
+ */
+function mergeTinySegments(segs: Array<{ start?: number; end?: number; en: string; zh: string }>) {
+  if (segs.length < 2) return segs
+  const out: Array<{ start?: number; end?: number; en: string; zh: string }> = []
+  for (const s of segs) {
+    const prev = out[out.length - 1]
+    if (
+      prev &&
+      typeof s.start === 'number' &&
+      typeof s.end === 'number' &&
+      typeof prev.start === 'number' &&
+      typeof prev.end === 'number' &&
+      s.end - s.start < 0.3
+    ) {
+      prev.en = prev.en ? `${prev.en} ${s.en}`.trim() : s.en
+      if (s.zh) prev.zh = prev.zh ? `${prev.zh} ${s.zh}`.trim() : s.zh
+      prev.end = s.end
+      continue
+    }
+    out.push(s)
+  }
+  return out
+}
+
+/**
+ * Reduce a very large segment list (e.g. 6000 Bilibili per-word cues) to at
+ * most `cap` blocks by greedily merging consecutive cues. Timestamps are kept
+ * (start of first, end of last) so playback sync still works; text is joined
+ * with a space. This keeps the transcript readable while preventing the UI
+ * from freezing on thousands of DOM nodes.
+ */
+function aggregateSegments(
+  segs: Array<{ start?: number; end?: number; en: string; zh: string }>,
+  cap: number,
+): Array<{ start?: number; end?: number; en: string; zh: string }> {
+  if (segs.length <= cap) return segs
+  const groupSize = Math.ceil(segs.length / cap)
+  const out: Array<{ start?: number; end?: number; en: string; zh: string }> = []
+  for (let i = 0; i < segs.length; i += groupSize) {
+    const chunk = segs.slice(i, i + groupSize)
+    if (chunk.length === 0) continue
+    const first = chunk[0]
+    const last = chunk[chunk.length - 1]
+    out.push({
+      start: first.start,
+      end: last.end,
+      en: chunk.map((c) => c.en).join(' ').trim(),
+      zh: chunk.map((c) => c.zh).filter(Boolean).join(' ').trim(),
+    })
+  }
+  return out
 }
 
 /**
@@ -1017,30 +1128,44 @@ function onMediaTimeUpdate(event?: Event | number) {
 
   const segments = transcriptSegments.value
 
-  // Find the active segment by exact timestamp range first.
-  let idx = segments.findIndex(s => s.start !== undefined && s.end !== undefined && time >= s.start && time < s.end)
-
-  // Fallback: forward-nearest match — pick the LAST segment whose start <= time.
-  // This is used when currentTime falls inside a gap between cues (common with
-  // VTT subtitle tracks). The previous proportional fallback jumped to a
-  // completely wrong index (time/duration * length), causing the highlight to
-  // land on an unrelated subtitle ("Disk C" → "All Diskymon"). Forward-nearest
-  // keeps the highlight on the most recently started cue, matching user
-  // expectation.
-  if (idx === -1 && segments.length > 0) {
-    for (let i = segments.length - 1; i >= 0; i--) {
-      const s = segments[i]
-      if (s.start !== undefined && time >= s.start) {
-        idx = i
-        break
+  // Binary search for the active segment by start timestamp (O(log n) instead
+  // of O(n) linear scan — critical when there are 1000+ segments updated 4×
+  // per second). Segments are sorted by start ascending.
+  let idx = -1
+  if (segments.length > 0) {
+    let lo = 0
+    let hi = segments.length - 1
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1
+      const s = segments[mid]
+      const st = s.start
+      if (st === undefined) {
+        hi = mid - 1
+        continue
+      }
+      if (time < st) {
+        hi = mid - 1
+      } else {
+        // st <= time — candidate; check if this is the last one whose start <= time
+        const nextSt = segments[mid + 1]?.start
+        if (nextSt === undefined || time < nextSt) {
+          idx = mid
+          break
+        }
+        lo = mid + 1
       }
     }
-    // Before the first cue starts — highlight the first one
+    // Fallback: if nothing matched (time before first cue), highlight first
     if (idx === -1) idx = 0
   }
 
   if (idx !== activeSegmentIndex.value && idx >= 0) {
     activeSegmentIndex.value = idx
+    // Keep the 双语全文 (article) tab highlight in sync with playback. The
+    // article tab groups cues into semantic paragraphs (not 1:1 with
+    // transcript segments), so mirror via the sentence timeline instead of
+    // reusing the transcript segment index.
+    syncArticleHighlight(time)
     // Auto-scroll the active segment into view
     scrollActiveSegmentIntoView()
   }
@@ -1073,11 +1198,15 @@ function scrollActiveSegmentIntoView(): void {
   const directionForward = activeSegmentIndex.value > lastAutoScrolledIndex
   lastAutoScrolledIndex = activeSegmentIndex.value
 
-  const blocks = transcriptBodyRef.value.querySelectorAll('.transcript-block')
-  const activeBlock = blocks[activeSegmentIndex.value] as HTMLElement | undefined
-  if (!activeBlock) return
-
+  // O(1) lookup: querySelectorAll on 6000+ nodes every timeupdate (4×/sec) was
+  // a major perf bottleneck. Use the container's live children collection
+  // instead — indexing into HTMLCollection is direct array access.
   const container = transcriptBodyRef.value
+  if (!container || !container.isConnected) return
+  const blocks = container.children
+  const activeBlock = blocks[activeSegmentIndex.value] as HTMLElement | undefined
+  if (!activeBlock || !activeBlock.isConnected) return
+
   // `.transcript-block` is not positioned, so `offsetTop` is measured against
   // an arbitrary positioned ancestor (not the scroll container) — using it
   // would scroll far past the target. Compute the block's position in the
@@ -1157,6 +1286,28 @@ function seekToSegment(seg: { start?: number; end?: number }, idx?: number): voi
       // Some browsers may throw on seek before metadata is loaded
     }
   }
+}
+
+/**
+ * Event-delegated word selection for the transcript panel.
+ *
+ * Replaces the per-block WordSelector component (which instantiated 6000+
+ * components and registered 18000+ global event listeners for a long
+ * Bilibili video, freezing the UI). Selection is handled once at the
+ * container level: on mouseup we read window.getSelection(), normalize the
+ * word, and route it through the same vocabulary-add path WordSelector used.
+ */
+function onTranscriptMouseUp(): void {
+  const sel = window.getSelection()
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return
+  const raw = sel.toString().trim()
+  if (!raw) return
+  // Only single-word selections auto-add; multi-word selections are ignored
+  // (the user may just be copying text).
+  if (/\s/.test(raw)) return
+  const word = raw.replace(/[^A-Za-z'-]/g, '')
+  if (!word) return
+  handleAddVocabulary(word)
 }
 
 /**
@@ -1258,18 +1409,6 @@ async function onVideoError() {
   }
 }
 
-/**
- * Format seconds as MM:SS or HH:MM:SS.
- */
-function formatTime(seconds: number): string {
-  if (!isFinite(seconds) || seconds < 0) return ''
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = Math.floor(seconds % 60)
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-  return `${m}:${String(s).padStart(2, '0')}`
-}
-
 function formatContent(text: string): string {
   const raw = (text || contentDetail.value?.summary || '').trim()
   if (!raw) return ''
@@ -1300,188 +1439,152 @@ const isTranslationAdequate = computed(() => {
 const normalizedType = computed(() => (contentDetail.value?.type || '').toLowerCase())
 
 // Fixed media URL (converts expired CDN URLs to stable embed URLs)
-const fixedVideoUrl = computed(() => fixMediaUrl(contentDetail.value?.videoUrl))
+// Fallback: if videoUrl is empty but sourceUrl is a Bilibili page, use sourceUrl
+// (some Bilibili-sourced videos only have sourceUrl, not videoUrl)
+const fixedVideoUrl = computed(() => {
+  const url = contentDetail.value?.videoUrl
+  if (url) return fixMediaUrl(url)
+  const src = contentDetail.value?.sourceUrl
+  if (src && /bilibili\.com\/video\/(BV|av)/.test(src)) return src
+  return undefined
+})
 const fixedAudioUrl = computed(() => fixMediaUrl(contentDetail.value?.audioUrl))
 // True when this video is from Bilibili (we'll use Bilibili iframe + postMessage sync)
 const isBiliVideo = computed(() => !!fixedVideoUrl.value && fixedVideoUrl.value.includes('bilibili'))
 
 /**
- * Extract TED talk slug from various URL patterns.
- * Normalizes hyphens to underscores since TED uses underscores in page URLs.
+ * Audio URL that is actually playable. Some crawled podcast rows stored a
+ * cover-image URL in audioUrl (image/jpeg) — feeding those to <audio> renders
+ * a permanently broken player, so filter them out.
  */
-function extractTedSlug(url: string): string | null {
-  // Pattern 1: Standard TED talk page URL
-  if (url.includes('ted.com/talks/')) {
-    const m = url.match(/ted\.com\/talks\/(?:embed\/)?([a-z0-9_]+)/i)
-    if (m) return m[1]
-  }
-
-  // Pattern 2: py.tedcdn.com / download.ted.com CDN download URL
-  // URL: /consus/projects/00/78/36/products/downloads/2025-hamish-mckenzie-4fc48b98-...
-  // Slug appears as: {year}-{slug}-{uuid}-download-{quality}
-  const cdnMatch = url.match(/\/downloads\/\d{4}-([a-z][a-z0-9_-]+?)-[0-9a-f-]{8,}-download/i)
-  if (cdnMatch) {
-    return cdnMatch[1].replace(/-/g, '_')
-  }
-
-  // Pattern 3: download.ted.com with talk slug
-  const dlMatch = url.match(/download\.ted\.com\/[^/]+\/(?:[^/]+\/)?([a-z0-9_]+)/i)
-  if (dlMatch) return dlMatch[1]
-
-  return null
-}
-
-/**
- * Convert expired CDN download URLs to stable embed URLs.
- * TED talks and YouTube videos use temporary CDN URLs that expire within hours.
- * This runs as a safety net until the database is reprocessed.
- */
-function fixMediaUrl(url: string | undefined): string | undefined {
-  if (!url) return url
-
-  // TED CDN download URL → extract slug from URL/DB and convert to embed
-  if (url.includes('tedcdn.com') || url.includes('download.ted.com') || url.includes('ted.com/talks/')) {
-    const slug = extractTedSlug(url)
-    if (slug) return `https://embed.ted.com/talks/${slug}`
-  }
-
-  // YouTube watch URL → embed URL
-  if (url.includes('youtube.com/watch') || url.includes('youtu.be/')) {
-    const ytId =
-      url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/)?.[1] ||
-      url.match(/[?&]v=([a-zA-Z0-9_-]{11})/)?.[1]
-    if (ytId) return `https://www.youtube.com/embed/${ytId}`
-  }
-
-  // Bilibili URLs — keep as-is, we'll proxy through backend and use native video player
-  // Do NOT convert to player.bilibili.com iframe format
-
+const usableAudioUrl = computed<string>(() => {
+  const url = fixedAudioUrl.value
+  if (!url) return ''
+  if (/\.(jpe?g|png|webp|gif|svg)(\?|$)/i.test(url)) return ''
+  if (/\/media\/display\//i.test(url)) return '' // france24 image CDN paths
   return url
-}
+})
 
 /**
- * Split an English paragraph into sentences for sentence-level hover effects.
- * Keeps the trailing period and treats `. ! ?` (followed by whitespace) as
- * boundaries, so abbreviations like "Dr." stay intact.
+ * True when the bilingual body is NOT already rendered inside the video or
+ * podcast player panel — i.e. plain ARTICLE content (or media whose player
+ * failed to mount). In that case a standalone reading section takes over,
+ * so articles finally have somewhere to display their body text.
  */
-function splitSentences(text: string): string[] {
-  const parts = text.split(/(?<=[.!?])\s+/)
-  return parts.map((p) => p.trim()).filter((p) => p.length > 0)
-}
+const showStandaloneArticle = computed(() => {
+  if (!hasArticleContent.value) return false
+  const mediaPanelShowsBody =
+    hasTranscriptSegments.value &&
+    ((normalizedType.value === 'video' && !!fixedVideoUrl.value) ||
+      (normalizedType.value === 'podcast'))
+  return !mediaPanelShowsBody
+})
 
 /**
- * Split a Chinese paragraph into sentences, by `。！？`. The bilingual
- * paragraphs keep en/zh aligned 1:1 by sentence count when possible, so
- * hovering the Nth English sentence can highlight the Nth Chinese sentence.
- */
-function splitZhSentences(text: string): string[] {
-  if (!text) return []
-  const parts = text.split(/(?<=[。！？])\s*/)
-  return parts.map((p) => p.trim()).filter((p) => p.length > 0)
-}
-
-/**
- * Returns bilingual paragraphs for the **article (full-text) tab only**.
+ * Bilingual paragraphs for the **article (full-text) tab only**.
  * Distinct from the subtitle tab which must keep every cue separate to
- * stay in sync with the player. We:
- *   1. prefer the `content` + `translation` fields when present (already
- *      paragraph-level text),
- *   2. otherwise merge adjacent `segments` whose English text does NOT
- *      end with a sentence terminator (`.?!`) — those mid-sentence splits
- *      are unavoidable for time-stamped subtitles but terrible to read as
- *      an article.
+ * stay in sync with the player.
+ *
+ * This is a computed (memoized), NOT a plain function called from the
+ * template: the old per-render recomputation re-ran the merge over ~6000
+ * cues on every re-render, and playback fires timeupdate ≈4×/s, so the
+ * whole merge pipeline ran continuously during video playback.
  */
+const bilingualParagraphs = computed<BilingualParagraph[]>(() => {
+  const d = contentDetail.value
+  if (!d) return []
+  // For VIDEO content the segments are raw Bilibili cues (often short
+  // fragments of a single sentence). We MUST merge continuation cues into
+  // complete sentences before paragraph-level grouping — otherwise a single
+  // English sentence like "Great. Unfortunately, the orchestra's already
+  // filled up, but they do have seats that are still left in the dress
+  // circle." gets split across multiple blocks, which looks broken.
+  return buildBilingualParagraphs(
+    normalizedBilingualSegments(d),
+    d.content,
+    d.translation,
+  )
+})
+
 /**
- * Cues that look like they were split mid-sentence: previous cue has no
- * terminator, or the next cue starts with a lowercase linking word and is
- * short. Two-part heuristic so that real mid-sentence subtitle cuts get
- * merged but full sentences that happen to start with "and" / "but" do
- * NOT get swallowed.
+ * Segment timestamps arrive in either ms (cleaner.ts) or seconds (legacy
+ * Bilibili backfill). Detect the unit the same way parseTranscriptSegments
+ * does (compare the largest cue start against the content duration) and
+ * return a seconds-normalized copy for the bilingual paragraph builder.
  */
-function isContinuationCue(prevEn: string, nextEn: string): boolean {
-  if (!prevEn) return false
-  if (!/[.!?]["')\]]?\s*$/.test(prevEn)) return true
-  // Starts with a lowercase linking word: clearly a continuation of the
-  // previous sentence that was cut mid-clause.
-  if (/^\s*(and|or|but|so|because|since|which|that|who|whom|whose|where|when|while|because|although|though)\b/i.test(nextEn)) {
-    return true
-  }
-  return false
+function normalizedBilingualSegments(d: any): Array<{ en?: string; zh?: string; start?: number; end?: number }> | undefined {
+  const segs = d?.segments
+  if (!Array.isArray(segs) || segs.length === 0) return undefined
+  const hasTs = segs.some((s: any) => s && typeof s.start === 'number')
+  if (!hasTs) return segs
+  const duration = d.duration || 0
+  const maxRaw = segs.reduce(
+    (m: number, s: any) => Math.max(m, typeof s.start === 'number' ? s.start : 0),
+    0,
+  )
+  const looksLikeSeconds = duration > 0 && maxRaw > 0 && maxRaw < duration * 2
+  if (looksLikeSeconds) return segs
+  return segs.map((s: any) => ({
+    ...s,
+    start: typeof s.start === 'number' ? s.start / 1000 : undefined,
+    end: typeof s.end === 'number' ? s.end / 1000 : undefined,
+  }))
 }
 
 /**
- * A sentence begins a new paragraph when it carries one of these signals:
- *   - a logical transition word (However, Furthermore, ..., 然而, 此外, ...)
- *   - an explicit time / place / perspective anchor
- *   - a question mark
- *   - or the previous paragraph is already long (≥ 4 sentences) and the
- *     text clearly contains a topic shift (heuristic: starts with a
- *     capitalized noun phrase that is not a pronoun).
+ * Flat sentence timeline for playback-synced highlighting in the 双语全文
+ * tab: one entry per sentence pair that carries timestamps, sorted by start
+ * so a binary search can locate (paragraph, sentence) from the playhead.
  */
-const EN_TRANSITION = /^\s*(however|furthermore|in addition|nevertheless|as a result|meanwhile|on the other hand|but|yet|so|when|as|to understand|on the contrary|in contrast)\b/i
-const ZH_TRANSITION = /^\s*(然而|此外|但是|不过|但|因此|所以|尽管如此|与此同时|另一方面|相反|换言之|事实上|实际上)\s*/
-const EN_TIME_ANCHOR = /\b(in \d{4}|when |after |before |once |by )\b/i
-const ZH_TIME_ANCHOR = /\b(\d{4}年|当|之后|之前|在)\b/
-
-function isParagraphBreak(en: string, zh: string, sentencesInCurrent: number): boolean {
-  if (EN_TRANSITION.test(en) || ZH_TRANSITION.test(zh)) return true
-  if (en.endsWith('?') || en.endsWith('？') || zh.includes('？')) return true
-  if (sentencesInCurrent >= 4 && EN_TIME_ANCHOR.test(en)) return true
-  if (sentencesInCurrent >= 4 && ZH_TIME_ANCHOR.test(zh)) return true
-  return false
-}
-
-function getBilingualParagraphs(): Array<{ en: string; zh: string }> {
-  const segments = contentDetail.value?.segments
-  if (Array.isArray(segments) && segments.length > 0) {
-    // Phase 1 — join adjacent subtitle cues that were split mid-sentence.
-    // Each item here is a *complete* sentence (one full sentence per item,
-    // plus possibly a trailing clause).
-    type Sentence = { en: string; zh: string }
-    const sentences: Sentence[] = []
-    for (const s of segments as any[]) {
-      const en = (s?.en || '').trim()
-      if (!en) continue
-      const zh = (s?.zh || '').trim()
-      const last = sentences[sentences.length - 1]
-      if (last && isContinuationCue(last.en, en)) {
-        last.en = (last.en + ' ' + en).replace(/\s+/g, ' ').trim()
-        if (zh) last.zh = (last.zh + ' ' + zh).replace(/\s+/g, ' ').trim()
-      } else {
-        sentences.push({ en, zh })
+const bilingualTimeline = computed(() => {
+  const tl: Array<{ p: number; s: number; start: number; end: number }> = []
+  bilingualParagraphs.value.forEach((para, p) => {
+    para.sentences.forEach((sent, s) => {
+      if (typeof sent.start === 'number' && typeof sent.end === 'number') {
+        tl.push({ p, s, start: sent.start, end: sent.end })
       }
-    }
+    })
+  })
+  // Raw cue timestamps can overlap slightly (consecutive cues sharing
+  // boundaries); sort so the binary search below stays valid.
+  tl.sort((a, b) => a.start - b.start)
+  return tl
+})
 
-    // Phase 2 — group consecutive sentences into paragraphs using semantic
-    // break signals (transition words, question marks, time anchors).
-    const paragraphs: Sentence[] = []
-    let current: Sentence | null = null
-    let sentenceCount = 0
-    for (const sent of sentences) {
-      const startsNew = isParagraphBreak(sent.en, sent.zh, sentenceCount)
-      if (!current || (sentenceCount > 0 && startsNew)) {
-        if (current) paragraphs.push(current)
-        current = { en: sent.en, zh: sent.zh }
-        sentenceCount = 1
-      } else {
-        current.en = (current.en + ' ' + sent.en).replace(/\s+/g, ' ').trim()
-        if (sent.zh) current.zh = (current.zh + ' ' + sent.zh).replace(/\s+/g, ' ').trim()
-        sentenceCount++
+/**
+ * Keep the 双语全文 tab's sentence highlight in sync with playback by
+ * locating the sentence pair whose [start, end] window contains the
+ * playhead. The timeline is built from the same sentence pairs the template
+ * renders, so paragraph/sentence indices always line up (the old code
+ * mirrored the transcript segment index onto the paragraph index, which was
+ * wrong once paragraphs stopped being 1:1 with segments).
+ */
+function syncArticleHighlight(time: number): void {
+  const tl = bilingualTimeline.value
+  if (tl.length === 0) return // no timestamps — leave highlight untouched
+  let lo = 0
+  let hi = tl.length - 1
+  let found = -1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (time < tl[mid]!.start) {
+      hi = mid - 1
+    } else {
+      const nextStart = tl[mid + 1]?.start
+      if (nextStart === undefined || time < nextStart) {
+        found = mid
+        break
       }
+      lo = mid + 1
     }
-    if (current) paragraphs.push(current)
-    if (paragraphs.length > 0) return paragraphs
   }
-
-  if (!contentDetail.value?.content || !contentDetail.value?.translation) return []
-  const enLines = contentDetail.value.content.split(/\n+/).filter(l => l.trim())
-  const zhLines = contentDetail.value.translation.split(/\n+/).filter(l => l.trim())
-  const len = Math.min(enLines.length, zhLines.length)
-  const out: Array<{ en: string; zh: string }> = []
-  for (let i = 0; i < len; i++) {
-    out.push({ en: enLines[i]?.trim() || '', zh: zhLines[i]?.trim() || '' })
+  if (found >= 0) {
+    activeParaIdx.value = tl[found]!.p
+    activeSentenceIdx.value = tl[found]!.s
+  } else {
+    activeParaIdx.value = -1
+    activeSentenceIdx.value = -1
   }
-  return out
 }
 </script>
 
@@ -1809,6 +1912,68 @@ function getBilingualParagraphs(): Array<{ en: string; zh: string }> {
   border-top-color: var(--color-primary, #4f46e5);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+.loading-sub {
+  font-size: 0.75rem;
+  color: #888;
+  max-width: 80%;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* Smaller spinner variant for inline use (transcript panel, etc.) */
+.spinner-sm {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
+/* Full-page initial loading overlay */
+.detail-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 80px 20px;
+  min-height: 50vh;
+  text-align: center;
+}
+
+.detail-loading .spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e5e7eb;
+  border-top-color: var(--color-primary, #4f46e5);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.detail-loading-text {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text, #1f2937);
+}
+
+.detail-loading-sub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+/* Transcript empty / loading placeholder */
+.transcript-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 16px;
+  color: #9ca3af;
+  font-size: 0.875rem;
+  text-align: center;
 }
 
 @keyframes spin {
@@ -2176,6 +2341,8 @@ function getBilingualParagraphs(): Array<{ en: string; zh: string }> {
   -webkit-overflow-scrolling: touch;
 }
 
+
+
 /* ── Audio Section ──────────────────────────────────────────── */
 .audio-section {
   background: var(--color-brand-50);
@@ -2311,91 +2478,29 @@ function getBilingualParagraphs(): Array<{ en: string; zh: string }> {
   color: var(--color-text-muted);
 }
 
-.bilingual-text {
-  padding: 0;
-}
+/* Bilingual reading block styles (.bilingual-text/.bilingual-block/.sentence/
+   .bi-zh/.zh-sentence/.translation-hint) moved into the shared
+   BilingualArticlePanel component when the markup was extracted. */
 
-/* Paragraph-level bilingual reading blocks: an English paragraph with
-   several sentences, followed by its translated paragraph below it. */
-.bilingual-block {
-  padding: var(--space-5) var(--space-4);
-  border-bottom: 1px solid var(--color-border);
+.audio-unavailable {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-muted);
+  border: 1px dashed var(--color-border);
   border-radius: var(--radius-md);
-  transition: background-color 0.2s ease;
-}
-
-.bilingual-block:last-child {
-  border-bottom: none;
-}
-
-.bilingual-block:hover {
-  /* No block-level background change — that would visually compete with
-     the JS-driven sentence+translation highlight and obscure the link. */
-}
-
-.bilingual-block .bi-en {
-  display: block;
-  font-size: 1rem;
-  line-height: 1.9;
-  color: var(--color-text);
-  margin-bottom: var(--space-3);
-  word-break: break-word;
-}
-
-/* Sentence-level hover: each sentence is a span inside the English
-   paragraph. Hovering one lifts it slightly and warms its color. The
-   active state is driven by a JS-set class (`.sentence-active`) instead
-   of pure CSS so that the matching Chinese paragraph can light up at
-   the same time — `:has()` works in modern Chromium but the JS route is
-   reliable everywhere. */
-.sentence {
-  display: inline-block; /* inline ignores transform — make it liftable */
-  border-radius: 4px;
-  padding: 1px 2px;
-  margin-right: 2px;     /* a thin gap between sentences, less than a full word-space */
-  transition: transform 0.18s ease, background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
-  cursor: default;
-  line-height: 1.9;
-}
-
-.sentence.sentence-active,
-.sentence:hover {
-  transform: translateY(-2px);
-  color: var(--color-primary);
-  background: rgba(79, 70, 229, 0.08); /* primary-indigo translucent wash */
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-/* Highlight only the Chinese sentence that corresponds to the hovered
-   English sentence — NOT the whole Chinese paragraph. */
-.bilingual-block .bi-zh .zh-sentence {
-  display: inline;
-  border-radius: 4px;
-  padding: 1px 2px;
-  transition: background-color 0.18s ease, color 0.18s ease;
-}
-
-.bilingual-block .bi-zh .zh-sentence.zh-sentence-active {
-  background: rgba(79, 70, 229, 0.10);
-  color: var(--color-text);
-}
-
-/* Whole paragraph fallback when sentence counts don't match. */
-.bilingual-block:has(.bi-zh .zh-sentence.zh-sentence-active) {
-  /* Hint the active sentence by adding a subtle left-border emphasis. */
-  border-left: 2px solid var(--color-primary);
-  border-left-color: var(--color-primary);
-  margin-left: -2px;
-}
-
-.bi-zh {
-  font-size: 0.9375rem;
-  line-height: 1.8;
   color: var(--color-text-muted);
-  padding: var(--space-2) var(--space-3);
-  text-indent: 2em;          /* Chinese paragraph first-line indent */
-  border-left: 2px solid var(--color-border);
-  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  font-size: 0.9375rem;
+}
+
+.audio-unavailable svg {
+  flex-shrink: 0;
+}
+
+/* Standalone article reading: no 500px scroll box — the page scrolls. */
+.article-panel-standalone {
+  max-height: none;
 }
 
 /* ── No Content ─────────────────────────────────────────────── */

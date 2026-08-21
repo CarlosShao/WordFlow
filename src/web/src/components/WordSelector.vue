@@ -30,30 +30,42 @@
           </div>
           <div v-else-if="dictEntry" class="word-popover__body">
             <!-- 中文释义 -->
-            <div v-if="dictEntry.translations.length" class="word-popover__translations">
+            <div v-if="dictEntry.translations?.length" class="word-popover__translations">
               <div v-for="(t, i) in dictEntry.translations" :key="i" class="word-popover__trow">
                 <span v-if="t.pos" class="word-popover__pos">{{ t.pos }}</span>
                 <span class="word-popover__cn">{{ t.cn }}</span>
               </div>
             </div>
             <!-- 英文释义 -->
-            <div v-if="dictEntry.definitions.length" class="word-popover__defs">
+            <div v-if="dictEntry.definitions?.length" class="word-popover__defs">
               <div v-for="(d, i) in dictEntry.definitions.slice(0, 2)" :key="'d' + i" class="word-popover__def">
                 <span v-if="d.pos" class="word-popover__pos">{{ d.pos }}</span>
                 <span class="word-popover__def-en">{{ d.en }}</span>
               </div>
             </div>
             <!-- 双语例句 -->
-            <div v-if="dictEntry.examples.length" class="word-popover__examples">
+            <div v-if="dictEntry.examples?.length" class="word-popover__examples">
               <div v-for="(e, i) in dictEntry.examples.slice(0, 2)" :key="'e' + i" class="word-popover__example">
                 <p class="word-popover__example-en">{{ e.en }}</p>
                 <p v-if="e.cn" class="word-popover__example-cn">{{ e.cn }}</p>
               </div>
             </div>
+            <!-- 派生词 -->
+            <div v-if="dictEntry.relatedWords?.length" class="word-popover__synonyms">
+              <span class="word-popover__syn-label">派生词</span>
+              <span v-for="(r, i) in dictEntry.relatedWords.slice(0, 6)" :key="'r' + i" class="word-popover__syn-tag">
+                {{ r.word }}<em v-if="r.pos" class="word-popover__syn-pos">{{ r.pos }}</em>
+              </span>
+            </div>
             <!-- 同义词 -->
-            <div v-if="dictEntry.synonyms.length" class="word-popover__synonyms">
+            <div v-if="dictEntry.synonyms?.length" class="word-popover__synonyms">
               <span class="word-popover__syn-label">同义词</span>
               <span v-for="(s, i) in dictEntry.synonyms.slice(0, 5)" :key="'s' + i" class="word-popover__syn-tag">{{ s }}</span>
+            </div>
+            <!-- 反义词 -->
+            <div v-if="dictEntry.antonyms?.length" class="word-popover__synonyms">
+              <span class="word-popover__syn-label">反义词</span>
+              <span v-for="(a, i) in dictEntry.antonyms.slice(0, 5)" :key="'a' + i" class="word-popover__syn-tag">{{ a }}</span>
             </div>
           </div>
           <div v-else class="word-popover__body">
@@ -108,6 +120,7 @@ interface DictEntry {
   examples: { en: string; cn: string }[]
   synonyms: string[]
   antonyms: string[]
+  relatedWords: { word: string; pos: string; translation?: string }[]
   exams: string[]
   source: string
 }
@@ -521,6 +534,13 @@ onBeforeUnmount(() => {
   background: var(--color-surface-muted);
   padding: 1px 6px;
   border-radius: var(--radius-sm);
+}
+
+.word-popover__syn-pos {
+  font-style: normal;
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  margin-left: 2px;
 }
 
 .word-popover__empty {

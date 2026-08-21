@@ -77,17 +77,21 @@ services:
       GITHUB_CLIENT_ID: Ov23liZbydGXIQoIdKPP
       GITHUB_CLIENT_SECRET: 4de853315780942a0853bb6403204aeb0d33e0cd
       GITHUB_CALLBACK_URL: http://localhost:3002/api/v1/auth/github/callback
-      AI_API_BASE_URL: https://api.stepfun.com/step_plan/v1
-      AI_API_KEY: 4ht7XMQIza75P819zfna8rCZEnCegevBfA5zfbiqMU1iUYInE9Jd1GLFAXbSllYn3
-      AI_MODEL: step-3.7-flash
+      AI_API_BASE_URL: https://api.agnes-ai.cn/v1
+      AI_API_KEY: sk-kqvGeyVkvO2JXn2AWw1MJDgQ6doGPpKfQVI8GYgUyuEtd459
+      AI_MODEL: agnes-2.5-flash
       CORS_ORIGIN: http://localhost:5173
       LOG_LEVEL: info
+      DICT_CRAWL_CRON: "0 9 * * *"
+      DICT_CRAWL_DAILY_LIMIT: "5000"
+      DICT_CRAWL_BATCH_REST_MS: "10000"
       BILIBILI_COOKIE: ${BILIBILI_COOKIE}
     ports:
       - "3002:3002"
     volumes:
       - ./src/server/src:/app/src
       - ./src/server/prisma:/app/prisma
+      - ./.bilibili_cookie.txt:/app/.bilibili_cookie.txt
       - wordflow_node_modules:/app/node_modules
     depends_on:
       postgres:

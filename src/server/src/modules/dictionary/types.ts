@@ -10,6 +10,15 @@ export interface Definition {
   /** Chinese translation for this definition */
   cn?: string
   synonyms?: string[]
+  antonyms?: string[]
+}
+
+/** A derived/related word (派生词), e.g. happy → happily (adv), happiness (n) */
+export interface RelatedWord {
+  word: string
+  pos: string
+  /** Chinese gloss for this related form */
+  translation?: string
 }
 
 /** A bilingual example sentence */
@@ -41,6 +50,8 @@ export interface DictionaryEntry {
   examples: Example[]
   synonyms: string[]
   antonyms: string[]
+  /** Derived/related word forms (派生词), e.g. happiness/happily for happy */
+  relatedWords: RelatedWord[]
   /** Exam tags, e.g. ['CET4', 'CET6', 'IELTS'] */
   exams: string[]
   /** Which provider served this entry */

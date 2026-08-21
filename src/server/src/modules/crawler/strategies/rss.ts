@@ -91,8 +91,19 @@ function parseRssXml(xml: string): RssEntry[] {
     const mediaThumbnailMatch = block.match(/<media:thumbnail[^>]*url="([^"]+)"/)
 
     if (titleMatch?.[1] && link) {
+      // Only treat an enclosure as AUDIO when it is typed as audio, or —
+      // when the feed omits the type attribute — the URL itself looks like
+      // an audio file. The previous any-enclosure fallback matched france24
+      // feeds that attach their lead IMAGE via <enclosure>, which mislabeled
+      // news articles as PODCAST and stored an image URL in audioUrl.
+      const looksLikeAudioUrl = (u: string | undefined) =>
+        !!u && /\.(mp3|m4a|aac|ogg|opus|wav)(\?|#|$)/i.test(u)
+      const anyEnclosure = enclosureAnyMatch?.[1]
       const audioUrl =
-        enclosureAudioMatch?.[1] || mediaContentAudioMatch?.[1] || enclosureAnyMatch?.[1] || null
+        enclosureAudioMatch?.[1] ||
+        mediaContentAudioMatch?.[1] ||
+        (looksLikeAudioUrl(anyEnclosure) ? anyEnclosure : undefined) ||
+        null
       const videoUrl =
         enclosureVideoMatch?.[1] || mediaContentVideoMatch?.[1] || mediaContentAnyMatch?.[1] || null
       const coverUrl = isUsableCoverUrl(mediaThumbnailMatch?.[1] ?? '')

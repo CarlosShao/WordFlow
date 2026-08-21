@@ -4,9 +4,10 @@
  * Sources (priority order, lower number crawls first):
  *   1. Content words — English words extracted from crawled content text.
  *   2. Existing vocabulary — words already in the public word bank (vocabularies / userId=system).
- *   3. Large word list — google-10000-english (real open-source data, order = frequency).
+ *   3. IELTS / TOEFL / google-10000 exam & frequency word lists.
  *
- * All words are normalized (lowercase, alpha only) and deduplicated. Rows that
+ * All words are normalized (lowercase, alpha only), deduplicated, and filtered
+ * for obvious noise (names, brand terms, unpronounceable strings). Rows that
  * already exist in `dictionary_entries` are skipped so the pool is idempotent —
  * re-running only adds genuinely new words (断点续爬).
  */
@@ -20,14 +21,38 @@ import { normalizeWord } from '../dictionary/service.js'
 import type { Prisma } from '@prisma/client'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const WORDLIST_PATH = join(__dirname, 'data', 'google-10000-english.txt')
+const DATA_DIR = join(__dirname, 'data')
 
 const SYSTEM_USER_ID = 'system'
 
-/** Priorities: smaller = higher. Content words first, then vocab, then big list. */
-const PRIORITY_CONTENT = 10
+/**
+ * Priorities: smaller = higher. Exam word lists (IELTS/TOEFL) are the most
+ * valuable for learners, so they get crawled first, then vocab, then content
+ * words, then the big frequency list.
+ */
+const PRIORITY_IELTS = 5
+const PRIORITY_TOEFL = 6
+const PRIORITY_COCA = 7
 const PRIORITY_VOCAB = 20
-const PRIORITY_WORDLIST = 30
+const PRIORITY_CONTENT = 30
+const PRIORITY_WORDLIST = 40
+
+/**
+ * Noise filter for candidate words. Returns false for obvious junk that should
+ * never be crawled / stored as dictionary entries:
+ *   - too short, too long, or containing digits
+ *   - no vowel → unpronounceable (e.g. "cvau", "cvgx")
+ *   - long vowel-only runs → gibberish
+ *   - 6+ consecutive consonants → almost certainly a name/typo, NOT a real word
+ *     (allows legitimate English consonant clusters like "strength"/"friendship")
+ */
+function isCleanWord(w: string): boolean {
+  if (w.length < 2 || w.length > 30 || /\d/.test(w)) return false
+  if (!/[aeiouy]/.test(w)) return false
+  if (/([bcdfghjklmnpqrstvwxz]{6,})/.test(w)) return false
+  if (/([aeiouy]{5,})/.test(w)) return false
+  return true
+}
 
 /** Extract plausible English words from a text block (crude but cheap). */
 function extractWords(text: string): Set<string> {
@@ -36,25 +61,43 @@ function extractWords(text: string): Set<string> {
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
     const w = m[0].toLowerCase()
-    // Skip very short / all-caps acronyms noise, keep real words
-    if (w.length < 2) continue
-    if (/^[a-z]+$/.test(w)) words.add(w)
+    if (isCleanWord(w)) words.add(w)
   }
   return words
 }
 
-/** Load the open-source google-10000-english word list (already frequency-ordered). */
-function loadWordList(): string[] {
+/** Load a per-line word list file, normalized + noise-filtered. */
+function loadWordListFile(path: string): string[] {
   try {
-    const raw = readFileSync(WORDLIST_PATH, 'utf8')
+    const raw = readFileSync(path, 'utf8')
     return raw
       .split('\n')
       .map((l) => l.trim().toLowerCase())
-      .filter((w) => /^[a-z]{2,}$/.test(w))
+      .filter((w) => isCleanWord(w) && /^[a-z]+(?:['-][a-z]+)*$/.test(w))
   } catch (err) {
-    logger.warn({ err }, 'wordpool: failed to load google word list')
+    logger.warn({ err, path }, 'wordpool: failed to load word list file')
     return []
   }
+}
+
+/** Load the open-source google-10000-english word list (already frequency-ordered). */
+function loadWordList(): string[] {
+  return loadWordListFile(join(DATA_DIR, 'google-10000-english.txt'))
+}
+
+/** Load the curated IELTS word list (新东方《雅思词汇词根+联想记忆法》). */
+function loadIeltsWordList(): string[] {
+  return loadWordListFile(join(DATA_DIR, 'ielts-words.txt'))
+}
+
+/** Load the curated TOEFL word list. */
+function loadToeflWordList(): string[] {
+  return loadWordListFile(join(DATA_DIR, 'toefl-words.txt'))
+}
+
+/** Load the COCA-20000 high-frequency word list (美国当代英语语料库). */
+function loadCocaWordList(): string[] {
+  return loadWordListFile(join(DATA_DIR, 'coca-words.txt'))
 }
 
 /**
@@ -87,23 +130,47 @@ export async function buildWordPool(): Promise<{ added: number; total: number }>
     if (w) vocabWords.add(w)
   }
 
-  // ---- Source 3: large word list ----
+  // ---- Source 3: curated exam/frequency word lists (IELTS / TOEFL / COCA) ----
+  const ieltsWords = new Set(loadIeltsWordList())
+  const toeflWords = new Set(loadToeflWordList())
+  const cocaWords = new Set(loadCocaWordList())
   const wordListWords = new Set(loadWordList())
 
   // ---- Merge by priority (lower first) ----
+  // Curated exam lists are merged FIRST so overlapping words keep their high
+  // priority instead of being demoted to content/vocab priority.
   const ordered: Array<{ word: string; priority: number }> = []
   const seen = new Set<string>()
-  for (const w of contentWords) {
+  for (const w of ieltsWords) {
     const n = normalizeWord(w)
     if (n && !seen.has(n)) {
       seen.add(n)
-      ordered.push({ word: n, priority: PRIORITY_CONTENT })
+      ordered.push({ word: n, priority: PRIORITY_IELTS })
+    }
+  }
+  for (const w of toeflWords) {
+    if (!seen.has(w)) {
+      seen.add(w)
+      ordered.push({ word: w, priority: PRIORITY_TOEFL })
+    }
+  }
+  for (const w of cocaWords) {
+    if (!seen.has(w)) {
+      seen.add(w)
+      ordered.push({ word: w, priority: PRIORITY_COCA })
     }
   }
   for (const w of vocabWords) {
     if (!seen.has(w)) {
       seen.add(w)
       ordered.push({ word: w, priority: PRIORITY_VOCAB })
+    }
+  }
+  for (const w of contentWords) {
+    const n = normalizeWord(w)
+    if (n && !seen.has(n)) {
+      seen.add(n)
+      ordered.push({ word: n, priority: PRIORITY_CONTENT })
     }
   }
   for (const w of wordListWords) {
@@ -138,7 +205,15 @@ export async function buildWordPool(): Promise<{ added: number; total: number }>
   }
 
   logger.info(
-    { added, content: contentWords.size, vocab: vocabWords.size, wordlist: wordListWords.size },
+    {
+      added,
+      content: contentWords.size,
+      vocab: vocabWords.size,
+      ielts: ieltsWords.size,
+      toefl: toeflWords.size,
+      coca: cocaWords.size,
+      wordlist: wordListWords.size,
+    },
     'wordpool: build complete',
   )
   return { added, total: existingCount + added }

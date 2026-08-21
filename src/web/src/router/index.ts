@@ -32,10 +32,10 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '首页', icon: 'house', requiresAuth: true }
   },
   {
-    path: '/content',
-    name: 'Content',
-    component: () => import('../views/ContentPage.vue'),
-    meta: { title: '内容', icon: 'book-open', requiresAuth: true }
+    path: '/materials',
+    name: 'Materials',
+    component: () => import('../views/MaterialsPage.vue'),
+    meta: { title: '素材库', icon: 'library', requiresAuth: true }
   },
   {
     path: '/content/:id',
@@ -56,22 +56,28 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '例句库', icon: 'quote', requiresAuth: true }
   },
   {
-    path: '/listening',
-    name: 'Listening',
-    component: () => import('../views/ListeningPage.vue'),
-    meta: { title: '听力', icon: 'headphones', requiresAuth: true }
+    path: '/exam',
+    name: 'Exam',
+    component: () => import('../views/ExamPage.vue'),
+    meta: { title: '真题', icon: 'graduation-cap', requiresAuth: true }
   },
   {
-    path: '/reading',
-    name: 'Reading',
-    component: () => import('../views/ReadingPage.vue'),
-    meta: { title: '阅读', icon: 'book-open', requiresAuth: true }
+    path: '/exam/book/:id',
+    name: 'ExamBook',
+    component: () => import('../views/ExamBookPage.vue'),
+    meta: { title: '真题详情', hidden: true, requiresAuth: true }
   },
   {
-    path: '/practice',
-    name: 'Practice',
+    path: '/exam/content/:id',
+    name: 'ExamPractice',
+    component: () => import('../views/ExamPracticePage.vue'),
+    meta: { title: '真题练习', hidden: true, requiresAuth: true }
+  },
+  {
+    path: '/ai-practice',
+    name: 'AiPractice',
     component: () => import('../views/PracticePage.vue'),
-    meta: { title: '练习', icon: 'pencil', requiresAuth: true }
+    meta: { title: 'AI练习', icon: 'sparkles', requiresAuth: true }
   },
   {
     path: '/mistakes',
@@ -90,6 +96,31 @@ const routes: RouteRecordRaw[] = [
     name: 'Settings',
     component: () => import('../views/SettingsPage.vue'),
     meta: { title: '设置', icon: 'settings', requiresAuth: true }
+  },
+  // ── 兼容旧路由（/content, /listening, /reading, /practice → 重定向到新入口） ──
+  {
+    path: '/content',
+    name: 'ContentLegacy',
+    redirect: '/materials',
+    meta: { hidden: true }
+  },
+  {
+    path: '/listening',
+    name: 'ListeningLegacy',
+    redirect: '/materials',
+    meta: { hidden: true }
+  },
+  {
+    path: '/reading',
+    name: 'ReadingLegacy',
+    redirect: '/materials',
+    meta: { hidden: true }
+  },
+  {
+    path: '/practice',
+    name: 'PracticeLegacy',
+    redirect: '/ai-practice',
+    meta: { hidden: true }
   },
   {
     path: '/settings/api',

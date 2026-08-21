@@ -2,12 +2,15 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { AppError, ErrorType } from '../../common/errors.js'
 import { logger } from '../../common/logger.js'
+import { getPrisma } from '../../common/prisma.js'
 import {
   validateFileType,
   processUpload,
   deleteFile,
   buildFileUrl,
 } from './service.js'
+import { getMinio } from '../../common/minio.js'
+import { config } from '../../config/index.js'
 
 // ------------------- Schemas -------------------
 
@@ -83,6 +86,11 @@ export async function uploadRoutes(app: FastifyInstance) {
       contentId,
     )
 
+    if (validatedType === 'avatar') {
+      const prisma = getPrisma()
+      await prisma.user.update({ where: { id: userId }, data: { avatarUrl: result.url } })
+    }
+
     logger.info(
       { userId, fileType: validatedType, key: result.key, size: result.size },
       'File uploaded successfully',
@@ -118,5 +126,32 @@ export async function uploadRoutes(app: FastifyInstance) {
     }
     const url = buildFileUrl(query.key)
     return reply.send({ success: true, data: { url } })
+  })
+
+  // ---- Proxy file content (browser-safe avatar/file access) ----
+  // Direct MinIO URL like http://minio:9000/... is unreachable from the browser
+  // when the API runs inside Docker. This proxy streams the object through the
+  // API with correct Content-Type + CORS, so <img src> never breaks.
+  app.get('/api/v1/upload/file', async (request: FastifyRequest, reply: FastifyReply) => {
+    const query = request.query as { key?: string }
+    if (!query.key) {
+      throw new AppError(ErrorType.VALIDATION, '缺少 key 参数', 400)
+    }
+    const key = query.key
+    const bucket = config.minio.bucket
+    const client = getMinio()
+    try {
+      const stat = await client.statObject(bucket, key)
+      const stream = await client.getObject(bucket, key)
+      const contentType = (stat.metaData?.['content-type'] as string) || 'application/octet-stream'
+      return reply
+        .header('Content-Type', contentType)
+        .header('Cache-Control', 'public, max-age=86400')
+        .header('Access-Control-Allow-Origin', '*')
+        .header('Cross-Origin-Resource-Policy', 'cross-origin')
+        .send(stream)
+    } catch (e) {
+      throw new AppError(ErrorType.NOT_FOUND, '文件不存在', 404)
+    }
   })
 }

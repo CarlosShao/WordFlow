@@ -45,7 +45,9 @@ withDefaults(defineProps<Props>(), {
 }
 
 .setting-label {
-  flex: 1;
+  flex: 0 0 30%;
+  min-width: 160px;
+  padding-right: var(--space-2);
 }
 
 .setting-label h3 {
@@ -64,7 +66,9 @@ withDefaults(defineProps<Props>(), {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
 .setting-control--full {

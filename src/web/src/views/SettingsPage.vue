@@ -77,9 +77,70 @@
         </SettingItem>
       </SettingsSection>
 
-      <!-- AI Settings -->
-      <SettingsSection title="AI 智能助手">
-        <SettingItem title="启用 AI 功能" description="开启后将使用 AI 生成题目、分析错误、提供个性化学习建议">
+      <!-- System-level AI Providers (shared by backend data pipeline & AI chat) -->
+      <SettingsSection title="AI 服务商（系统级）">
+        <SettingItem
+          title="统一 LLM 配置"
+          description="翻译、摘要、AI 问答等所有后台任务按优先级轮换使用这些服务商；某个被限流（429）时自动切换并在 60 秒后重试。修改后立即对前后台生效。"
+          full-width
+        >
+          <div class="provider-list">
+            <div v-if="providersLoading" class="provider-hint">加载中…</div>
+            <div v-else-if="providers.length === 0" class="provider-hint">
+              暂无服务商，后台将回退到环境变量配置
+            </div>
+            <div v-for="p in providers" :key="p.id" :class="['provider-card', { 'provider-disabled': !p.enabled }]">
+              <div class="provider-head">
+                <span class="provider-name">{{ p.name }}</span>
+                <span v-if="p.enabled && isPrimary(p)" class="provider-role role-primary">主力</span>
+                <span v-else class="provider-role">优先级 {{ p.priority }}</span>
+                <span v-if="testResults[p.id]" :class="['provider-test', testResults[p.id]!.ok ? 'test-ok' : 'test-fail']">
+                  {{ testResults[p.id]!.ok ? `✓ ${testResults[p.id]!.latencyMs}ms` : `✗ ${(testResults[p.id]!.message || '失败').slice(0, 40)}` }}
+                </span>
+                <span class="provider-spacer"></span>
+                <Toggle :model-value="p.enabled" @update:model-value="(v: boolean) => toggleProvider(p, v)" />
+              </div>
+              <div class="provider-meta">
+                <span class="meta-item" :title="p.baseUrl">{{ p.baseUrl }}</span>
+                <span class="meta-item">模型：{{ p.model }}</span>
+                <span class="meta-item">Key：{{ p.apiKeyMasked }}</span>
+              </div>
+              <div class="provider-actions">
+                <BaseButton variant="secondary" size="sm" :disabled="testingId === p.id" @click="testProvider(p)">
+                  {{ testingId === p.id ? '测试中…' : '测试连通' }}
+                </BaseButton>
+                <BaseButton variant="secondary" size="sm" @click="startEdit(p)">编辑</BaseButton>
+                <BaseButton variant="secondary" size="sm" @click="removeProvider(p)">删除</BaseButton>
+              </div>
+            </div>
+
+            <!-- Inline editor (edit existing / create new) -->
+            <div v-if="editing" class="provider-editor">
+              <div class="editor-title">{{ editing.id ? '编辑服务商' : '新增服务商' }}</div>
+              <div class="editor-grid">
+                <label>名称<input v-model="editing.name" placeholder="agnes（主力）" /></label>
+                <label>Base URL<input v-model="editing.baseUrl" placeholder="https://api.example.com/v1" /></label>
+                <label>模型<input v-model="editing.model" placeholder="agnes-2.5-flash" /></label>
+                <label>优先级<input v-model.number="editing.priority" type="number" min="1" max="1000" /></label>
+                <label class="editor-key">
+                  API Key（{{ editing.id ? '留空保持不变，当前 ' + editing.apiKeyMasked : '必填' }}）
+                  <input v-model="editing.apiKey" type="password" placeholder="sk-..." />
+                </label>
+              </div>
+              <div class="editor-actions">
+                <BaseButton size="sm" :disabled="!editing.name || !editing.baseUrl || !editing.model || (!editing.id && !editing.apiKey)" @click="saveProvider">保存</BaseButton>
+                <BaseButton variant="secondary" size="sm" @click="editing = null">取消</BaseButton>
+              </div>
+            </div>
+
+            <BaseButton v-if="!editing" variant="secondary" size="sm" @click="startCreate">+ 新增服务商</BaseButton>
+          </div>
+        </SettingItem>
+      </SettingsSection>
+
+      <!-- AI Settings (personal override, AI-chat only) -->
+      <SettingsSection title="AI 智能助手（个人覆盖，可选）">
+        <SettingItem title="启用个人覆盖" description="填写后将优先用于 AI 问答/练习题；留空则始终走上方系统级服务商。数据管线翻译不受此影响。">
           <Toggle v-model="aiSettings.enabled" />
         </SettingItem>
         <template v-if="aiSettings.enabled">
@@ -107,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watchEffect, watch } from 'vue'
+import { ref, reactive, watchEffect, watch, onMounted } from 'vue'
 import {
   PageHeader,
   SettingsSection,
@@ -120,14 +181,18 @@ import {
 } from '../components'
 import { useToast } from '../composables/useToast'
 import { useTheme } from '../composables/useTheme'
-import { configureAI } from '../api/ai'
+import { configureAI, aiProvidersApi } from '../api/ai'
+import type { AiProvider, AiProviderTestResult } from '../api/ai'
 import { uploadApi } from '../api/upload'
+import { useAuthStore } from '../stores/auth'
 import type { ThemeStyle } from '../composables/useTheme'
 import type { CEFRLevel, ContentSource } from '../types'
 
 const toast = useToast()
+const auth = useAuthStore()
 const avatarInput = ref<HTMLInputElement | null>(null)
 const avatarUrl = ref<string>('')
+watch(() => (auth.user as unknown as Record<string, unknown> | null)?.avatar as string | undefined || (auth.user as unknown as Record<string, unknown> | null)?.avatarUrl as string | undefined, (v) => { if (v) avatarUrl.value = uploadApi.normalizeAvatarUrl(v) || v }, { immediate: true })
 
 async function handleAvatarUpload(event: Event) {
   const target = event.target as HTMLInputElement
@@ -135,7 +200,8 @@ async function handleAvatarUpload(event: Event) {
   if (!file) return
   try {
     const result = await uploadApi.uploadFile(file, 'avatar')
-    avatarUrl.value = result.url
+    avatarUrl.value = uploadApi.normalizeAvatarUrl(result.url, result.key) || result.url
+    await auth.fetchProfile()
     toast.success('头像上传成功')
   } catch {
     toast.error('头像上传失败，请稍后重试')
@@ -185,6 +251,124 @@ watchEffect(() => {
     aiMode.value = 'real'
   }
 })
+
+// ── 系统级 AI Provider 管理（与后台 callLlm 共用 ai_providers 表）──────
+const providers = ref<AiProvider[]>([])
+const providersLoading = ref(false)
+const testResults = reactive<Record<string, AiProviderTestResult>>({})
+const testingId = ref('')
+const editing = ref<{
+  id?: string
+  nameOriginal?: string
+  apiKeyMasked?: string
+  name: string
+  baseUrl: string
+  apiKey: string
+  model: string
+  priority: number
+} | null>(null)
+
+function isPrimary(p: AiProvider): boolean {
+  return providers.value.filter((x) => x.enabled).every((x) => x.priority >= p.priority)
+}
+
+async function loadProviders(): Promise<void> {
+  providersLoading.value = true
+  try {
+    providers.value = await aiProvidersApi.list()
+  } catch {
+    toast.error('加载 AI 服务商失败')
+  } finally {
+    providersLoading.value = false
+  }
+}
+
+onMounted(loadProviders)
+
+function startEdit(p: AiProvider): void {
+  editing.value = {
+    id: p.id,
+    nameOriginal: p.name,
+    apiKeyMasked: p.apiKeyMasked,
+    name: p.name,
+    baseUrl: p.baseUrl,
+    apiKey: '',
+    model: p.model,
+    priority: p.priority,
+  }
+}
+
+function startCreate(): void {
+  editing.value = {
+    name: '',
+    baseUrl: '',
+    apiKey: '',
+    model: '',
+    priority: (providers.value.length + 1) * 10,
+  }
+}
+
+async function saveProvider(): Promise<void> {
+  const e = editing.value
+  if (!e) return
+  try {
+    if (e.id) {
+      await aiProvidersApi.update(e.id, {
+        name: e.name,
+        baseUrl: e.baseUrl,
+        model: e.model,
+        priority: e.priority,
+        // 空 key = 保持原值，后端会忽略空字符串
+        apiKey: e.apiKey.trim() ? e.apiKey.trim() : '',
+      })
+    } else {
+      await aiProvidersApi.create({
+        name: e.name,
+        baseUrl: e.baseUrl,
+        apiKey: e.apiKey.trim(),
+        model: e.model,
+        priority: e.priority,
+      })
+    }
+    toast.success('已保存，前后台即时生效')
+    editing.value = null
+    await loadProviders()
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error?.message || err?.message || '保存失败')
+  }
+}
+
+async function toggleProvider(p: AiProvider, enabled: boolean): Promise<void> {
+  try {
+    await aiProvidersApi.update(p.id, { enabled })
+    p.enabled = enabled
+    toast.success(enabled ? `已启用 ${p.name}` : `已停用 ${p.name}`)
+  } catch {
+    toast.error('操作失败')
+  }
+}
+
+async function removeProvider(p: AiProvider): Promise<void> {
+  if (!confirm(`确定删除服务商「${p.name}」？`)) return
+  try {
+    await aiProvidersApi.remove(p.id)
+    toast.success('已删除')
+    await loadProviders()
+  } catch {
+    toast.error('删除失败')
+  }
+}
+
+async function testProvider(p: AiProvider): Promise<void> {
+  testingId.value = p.id
+  try {
+    testResults[p.id] = await aiProvidersApi.test({ id: p.id })
+  } catch (err: any) {
+    testResults[p.id] = { ok: false, status: 0, latencyMs: 0, message: err?.message ?? '请求失败' }
+  } finally {
+    testingId.value = ''
+  }
+}
 
 const sources: ContentSource[] = ['BBC', 'CNN', 'NYT', 'Reddit', 'X', 'Medium', 'TED', 'YouTube']
 
@@ -353,5 +537,140 @@ function resetSettings() {
   color: #ffffff;
   background: var(--color-success-600, #16a34a);
   border-color: transparent;
+}
+
+/* ── AI Provider 卡片 ─────────────────────────────────────────── */
+.provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.provider-hint {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  padding: var(--space-2) 0;
+}
+
+.provider-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--color-surface);
+}
+
+.provider-disabled {
+  opacity: 0.55;
+}
+
+.provider-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.provider-name {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.provider-role {
+  font-size: 0.75rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.provider-role.role-primary {
+  background: var(--color-brand-50, #eef2ff);
+  color: var(--color-primary);
+}
+
+.provider-test {
+  font-size: 0.75rem;
+}
+
+.provider-test.test-ok {
+  color: var(--color-success-600, #16a34a);
+}
+
+.provider-test.test-fail {
+  color: var(--color-danger-600, #dc2626);
+}
+
+.provider-spacer {
+  flex: 1;
+}
+
+.provider-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.meta-item {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.provider-editor {
+  border: 1px dashed var(--color-border-strong, var(--color-border));
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.editor-title {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.editor-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.editor-grid input {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.editor-key {
+  grid-column: 1 / -1;
+}
+
+.editor-actions {
+  display: flex;
+  gap: var(--space-2);
 }
 </style>

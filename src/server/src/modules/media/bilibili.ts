@@ -12,6 +12,62 @@ import { config } from '../../config/index.js'
 const BILIBILI_API = 'https://api.bilibili.com'
 
 /**
+ * In-memory cache for resolved Bilibili play URLs.
+ *
+ * `getBilibiliVideoUrl` performs two sequential upstream calls to Bilibili
+ * (view + playurl, plus a third on DASH fallback). Re-entering the same video
+ * (back/forward, refresh, or re-clicking) would otherwise pay that full
+ * latency again. Bilibili's CDN URLs stay valid for several minutes, so we
+ * cache per (bvid, cid) for a short TTL to make repeated loads instant.
+ */
+interface CachedPlayResult {
+  result: { playUrl: BiliPlayUrl; info: BiliVideoInfo; dashInfo?: BiliDashInfo }
+  expiresAt: number
+}
+const playUrlCache = new Map<string, CachedPlayResult>()
+const PLAY_URL_CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutes
+
+/**
+ * Video metadata (title/cid/pages) barely changes, but `fetchVideoInfo` is an
+ * upstream HTTPS round-trip to api.bilibili.com that used to run on EVERY
+ * play-url request — even cache hits — adding 0.5~2s to detail-page loads.
+ * Cache it per bvid for longer than play URLs.
+ */
+interface CachedVideoInfo {
+  info: BiliVideoInfo
+  expiresAt: number
+}
+const videoInfoCache = new Map<string, CachedVideoInfo>()
+const VIDEO_INFO_CACHE_TTL_MS = 30 * 60 * 1000 // 30 minutes
+
+export async function fetchVideoInfo(bvid: string): Promise<BiliVideoInfo> {
+  const cached = videoInfoCache.get(bvid)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.info
+  }
+  const res = await fetch(`${BILIBILI_API}/x/web-interface/view?bvid=${bvid}`, {
+    headers: buildHeaders(),
+  })
+  if (!res.ok) throw new Error(`Bilibili API error: ${res.status}`)
+  const data = await res.json()
+  if (data.code !== 0) throw new Error(`Bilibili API: ${data.message}`)
+
+  const d = data.data
+  const info: BiliVideoInfo = {
+    title: d.title,
+    bvid: d.bvid,
+    aid: d.aid,
+    cid: d.cid,
+    pages: (d.pages || []).map((p: any) => ({ cid: p.cid, page: p.page, part: p.part })),
+    duration: d.duration,
+    cover: d.pic,
+    owner: d.owner?.name || '',
+  }
+  videoInfoCache.set(bvid, { info, expiresAt: Date.now() + VIDEO_INFO_CACHE_TTL_MS })
+  return info
+}
+
+/**
  * Build request headers for Bilibili API calls.
  *
  * Without a SESSDATA cookie, Bilibili only returns 480P/360P streams even when
@@ -109,27 +165,6 @@ export function getBestQuality(availableQualities: number[]): number {
     if (availableQualities.includes(q)) return q
   }
   return availableQualities[0] || 80
-}
-
-export async function fetchVideoInfo(bvid: string): Promise<BiliVideoInfo> {
-  const res = await fetch(`${BILIBILI_API}/x/web-interface/view?bvid=${bvid}`, {
-    headers: buildHeaders(),
-  })
-  if (!res.ok) throw new Error(`Bilibili API error: ${res.status}`)
-  const data = await res.json()
-  if (data.code !== 0) throw new Error(`Bilibili API: ${data.message}`)
-
-  const d = data.data
-  return {
-    title: d.title,
-    bvid: d.bvid,
-    aid: d.aid,
-    cid: d.cid,
-    pages: (d.pages || []).map((p: any) => ({ cid: p.cid, page: p.page, part: p.part })),
-    duration: d.duration,
-    cover: d.pic,
-    owner: d.owner?.name || '',
-  }
 }
 
 export async function fetchPlayUrl(bvid: string, cid: number, quality = 80): Promise<BiliPlayUrl> {
@@ -278,6 +313,17 @@ export async function getBilibiliVideoUrl(
 
   const page = requestedPage || parsed.page || 1
 
+  // Serve from cache FIRST — the key only needs bvid+page (both known from the
+  // URL), so a cache hit skips ALL upstream Bilibili calls. The previous key
+  // used the cid, which is only obtainable via fetchVideoInfo, so every request
+  // paid at least one upstream round-trip before checking the cache.
+  const cacheKey = `${parsed.bvid}:p${page}`
+  const cached = playUrlCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    logger.info({ bvid: parsed.bvid, page, cacheKey }, 'Bilibili play URL served from cache')
+    return cached.result
+  }
+
   logger.info({ bvid: parsed.bvid, page }, 'Fetching Bilibili video info')
 
   const info = await fetchVideoInfo(parsed.bvid)
@@ -294,7 +340,9 @@ export async function getBilibiliVideoUrl(
       { bvid: parsed.bvid, cid, quality: playUrl.quality, url: playUrl.url },
       'Bilibili video URL extracted (merged MP4)',
     )
-    return { playUrl, info }
+    const result = { playUrl, info }
+    playUrlCache.set(cacheKey, { result, expiresAt: Date.now() + PLAY_URL_CACHE_TTL_MS })
+    return result
   } catch (mergedErr) {
     logger.warn(
       { error: (mergedErr as Error).message },
@@ -320,5 +368,7 @@ export async function getBilibiliVideoUrl(
     { bvid: parsed.bvid, cid, quality: bestVideo.id },
     'Bilibili DASH video-only fallback (no audio)',
   )
-  return { playUrl, info, dashInfo }
+  const result = { playUrl, info, dashInfo }
+  playUrlCache.set(cacheKey, { result, expiresAt: Date.now() + PLAY_URL_CACHE_TTL_MS })
+  return result
 }

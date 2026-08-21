@@ -22,10 +22,15 @@ async function translateBatch(enBatch: string[], retry = 0): Promise<string[]> {
   const userPrompt = `${numbered}\n\n请只输出带编号的中文翻译，每行一条：`
 
   try {
-    const res = await callLlm([
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ])
+    // Hard timeout: the LLM endpoint occasionally hangs without responding.
+    // Without this a single stalled request blocks the whole crawl batch.
+    const res = await callLlm(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      { signal: AbortSignal.timeout(120_000) },
+    )
     const text = (res ?? '').trim()
     const lines = text
       .split('\n')

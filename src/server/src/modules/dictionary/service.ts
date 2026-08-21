@@ -71,6 +71,25 @@ export async function getWordDefinition(rawWord: string): Promise<LookupResult> 
   return entry
 }
 
+/**
+ * Backfill any missing array fields with empty arrays so the frontend can safely
+ * access `.length`. Older payloads (pre-relatedWords schema) lack some fields.
+ */
+function normalizeDbPayload(raw: Record<string, unknown>): DictionaryEntry {
+  const r = raw as unknown as DictionaryEntry
+  return {
+    ...r,
+    translations: r.translations ?? [],
+    definitions: r.definitions ?? [],
+    examples: r.examples ?? [],
+    synonyms: r.synonyms ?? [],
+    antonyms: r.antonyms ?? [],
+    relatedWords: r.relatedWords ?? [],
+    exams: r.exams ?? [],
+    phonetic: r.phonetic ?? { uk: '', us: '' },
+  }
+}
+
 /** Look up a word from the crawled dictionary_entries table (priority hit). */
 async function lookupDbEntry(word: string): Promise<DictionaryEntry | null> {
   try {
@@ -80,7 +99,7 @@ async function lookupDbEntry(word: string): Promise<DictionaryEntry | null> {
       select: { status: true, payload: true },
     })
     if (row?.status === 'DONE' && row.payload) {
-      return row.payload as unknown as DictionaryEntry
+      return normalizeDbPayload(row.payload as Record<string, unknown>)
     }
     return null
   } catch (err) {
