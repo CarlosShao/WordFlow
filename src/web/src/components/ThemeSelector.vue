@@ -46,7 +46,8 @@ withDefaults(defineProps<Props>(), {
     { value: 'golden-time', label: 'Golden Time', description: '暖金色，深色优雅', colors: ['#C9A84C', '#A89B85', '#1A1612', '#F5F0E8'] },
     { value: 'vibe-camp', label: 'Vibe Camp', description: '明亮彩色，活泼年轻', colors: ['#FF6B35', '#8B7E74', '#FFFBF5', '#2D2A26'] },
     { value: 'barbie', label: 'Barbie', description: '粉色渐变，可爱圆润', colors: ['#E91E8C', '#9B6E9B', '#FFF0F5', '#4A154B'] },
-    { value: 'google', label: 'Google', description: 'Material Design，彩色按钮', colors: ['#1A73E8', '#5F6368', '#FFFFFF', '#202124'] }
+    { value: 'google', label: 'Google', description: 'Material Design，彩色按钮', colors: ['#1A73E8', '#5F6368', '#FFFFFF', '#202124'] },
+    { value: 'dark', label: '暗色', description: '深色护眼，低光环境', colors: ['#fafafa', '#a1a1aa', '#18181b', '#3f3f46'] }
   ]
 })
 

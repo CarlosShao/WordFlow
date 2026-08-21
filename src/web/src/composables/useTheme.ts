@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { authApi } from '../api/auth'
 import { getAccessToken } from '../api/client'
 
-export type ThemeStyle = 'minimalist' | 'vercel' | 'apple' | 'golden-time' | 'vibe-camp' | 'barbie' | 'google'
+export type ThemeStyle = 'minimalist' | 'vercel' | 'apple' | 'golden-time' | 'vibe-camp' | 'barbie' | 'google' | 'dark'
 
 const STORAGE_KEY = 'english-learner-theme-style'
 
