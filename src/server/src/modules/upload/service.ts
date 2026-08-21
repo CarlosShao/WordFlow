@@ -107,10 +107,12 @@ export function buildStorageKey(
 
 /**
  * Build the public URL for an uploaded file.
+ * Uses publicEndpoint/publicPort so browsers can reach it even when the
+ * server talks to MinIO via the Docker-internal hostname `minio`.
  */
 export function buildFileUrl(key: string): string {
   const protocol = config.minio.useSSL ? 'https' : 'http'
-  return `${protocol}://${config.minio.endpoint}:${config.minio.port}/${config.minio.bucket}/${key}`
+  return `${protocol}://${config.minio.publicEndpoint}:${config.minio.publicPort}/${config.minio.bucket}/${key}`
 }
 
 /**

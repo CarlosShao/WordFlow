@@ -26,7 +26,7 @@ export const useContentStore = defineStore('content', () => {
     type?: ContentType
     category?: ContentCategory
     difficulty?: CEFRLevel
-    search?: string
+    keyword?: string
     append?: boolean
     mix?: boolean
   }) {
@@ -41,7 +41,7 @@ export const useContentStore = defineStore('content', () => {
         type: params?.type,
         category: params?.category,
         difficulty: params?.difficulty,
-        search: params?.search,
+        keyword: params?.keyword,
         mix: params?.mix,
       })
       const resItems = res?.items ?? []

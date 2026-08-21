@@ -9,7 +9,7 @@
     <section class="profile-card">
       <div class="profile-avatar-section">
         <div class="avatar-wrapper">
-          <img v-if="user?.avatar" :src="user.avatar" :alt="user.username" class="avatar-image" />
+          <img v-if="displayAvatar" :src="displayAvatar" :alt="user?.username || '用户'" class="avatar-image" />
           <div v-else class="avatar-placeholder">
             {{ initials }}
           </div>
@@ -76,12 +76,19 @@ import { useRouter } from 'vue-router'
 import { BaseInput, BaseButton } from '../components'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
+import { uploadApi } from '../api/upload'
 import type { UserProfile } from '../types'
 
 const router = useRouter()
 const auth = useAuthStore()
 const toast = useToast()
 
+const displayAvatar = computed(() => {
+  const raw = (auth.user as unknown as Record<string, unknown> | null)?.avatar as string | undefined
+    || (auth.user as unknown as Record<string, unknown> | null)?.avatarUrl as string | undefined
+  if (!raw) return undefined
+  return uploadApi.normalizeAvatarUrl(raw) || raw
+})
 const user = computed(() => auth.user)
 
 const initials = computed(() => {

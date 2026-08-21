@@ -149,6 +149,7 @@ import { ref, watch, onMounted, computed } from 'vue'
 import { useContentStore } from '../stores/content'
 import { PageHeader, AudioPlayer, Skeleton, EmptyState, DictationMode, TranscriptHighlight, PronunciationBtn } from '../components'
 import { useToast } from '../composables/useToast'
+import { DIFFICULTY_LEVELS } from '../utils/constants'
 import type { ListeningMaterial, CEFRLevel } from '../types'
 
 const contentStore = useContentStore()
@@ -164,14 +165,7 @@ const toast = useToast()
 const dictationMode = ref(false)
 const activeSentenceIndex = ref(-1)
 
-const difficultyLevels = [
-  { value: 'A1' as CEFRLevel, label: 'A1 入门' },
-  { value: 'A2' as CEFRLevel, label: 'A2 基础' },
-  { value: 'B1' as CEFRLevel, label: 'B1 中级' },
-  { value: 'B2' as CEFRLevel, label: 'B2 中高级' },
-  { value: 'C1' as CEFRLevel, label: 'C1 高级' },
-  { value: 'C2' as CEFRLevel, label: 'C2 精通' }
-]
+const difficultyLevels = DIFFICULTY_LEVELS
 
 async function fetchMaterials() {
   await contentStore.fetchListeningMaterials({

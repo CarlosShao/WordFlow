@@ -5,6 +5,12 @@ export interface DictionaryExample {
   cn: string
 }
 
+export interface DictionaryRelatedWord {
+  word: string
+  pos: string
+  translation?: string
+}
+
 export interface DictionaryEntry {
   word: string
   phonetic: {
@@ -18,6 +24,7 @@ export interface DictionaryEntry {
   examples: DictionaryExample[]
   synonyms: string[]
   antonyms: string[]
+  relatedWords: DictionaryRelatedWord[]
   exams: string[]
   source: 'youdao' | 'dictcn'
 }

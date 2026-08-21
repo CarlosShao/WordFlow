@@ -57,7 +57,7 @@
         @click="selectArticle(article)"
       >
         <div v-if="article.coverImage" class="article-cover">
-          <img :src="article.coverImage" :alt="article.title" />
+          <img :src="article.coverImage" :alt="article.title" referrerpolicy="no-referrer" />
         </div>
         <div class="article-content">
           <div class="article-meta">
@@ -133,6 +133,7 @@ import { useContentStore } from '../stores/content'
 import { PageHeader, BaseModal, BaseButton, Skeleton, EmptyState, WordTooltip, ReadingTimer, TranslationToggle, PronunciationBtn } from '../components'
 import { useToast } from '../composables/useToast'
 import { debounce } from '../utils/debounce'
+import { DIFFICULTY_LEVELS } from '../utils/constants'
 import type { Article, CEFRLevel, ArticleSource } from '../types'
 
 const contentStore = useContentStore()
@@ -151,14 +152,7 @@ const tooltipDef = ref('')
 const tooltipChinese = ref('')
 const translationMode = ref<'original' | 'bilingual' | 'translated'>('original')
 
-const difficultyLevels = [
-  { value: 'A1' as CEFRLevel, label: 'A1 入门' },
-  { value: 'A2' as CEFRLevel, label: 'A2 基础' },
-  { value: 'B1' as CEFRLevel, label: 'B1 中级' },
-  { value: 'B2' as CEFRLevel, label: 'B2 中高级' },
-  { value: 'C1' as CEFRLevel, label: 'C1 高级' },
-  { value: 'C2' as CEFRLevel, label: 'C2 精通' }
-]
+const difficultyLevels = DIFFICULTY_LEVELS
 
 const sources: ArticleSource[] = ['BBC', 'CNN', 'NYT', 'Reddit', 'X', 'Medium', 'TED', 'YouTube']
 

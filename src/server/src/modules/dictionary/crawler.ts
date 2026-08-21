@@ -18,6 +18,7 @@ import { lookupYoudao } from './youdao.js'
 import { lookupDictcn } from './dictcn.js'
 import { normalizeWord } from './service.js'
 import type { DictionaryEntry } from './types.js'
+import type { Prisma } from '@prisma/client'
 
 const MAX_RETRY = 3
 
@@ -88,6 +89,37 @@ export async function getDictionaryProgress(): Promise<{
 }
 
 /**
+ * Enqueue related words (派生词/近义词/反义词) from a crawled entry into the
+ * word pool so they get crawled too. Idempotent — skips words already present.
+ */
+async function enqueueRelatedWords(prisma: ReturnType<typeof getPrisma>, entry: DictionaryEntry): Promise<void> {
+  const candidates = new Set<string>()
+  const push = (w: string | undefined) => {
+    if (!w) return
+    const n = normalizeWord(w)
+    if (n && n !== entry.word) candidates.add(n)
+  }
+  for (const r of entry.relatedWords) push(r.word)
+  for (const s of entry.synonyms) push(s)
+  for (const a of entry.antonyms) push(a)
+
+  if (candidates.size === 0) return
+
+  const existingRows = await prisma.dictionaryEntry.findMany({
+    where: { word: { in: [...candidates] } },
+    select: { word: true },
+  })
+  const existing = new Set(existingRows.map((r) => r.word))
+  const fresh: Prisma.DictionaryEntryCreateManyInput[] = []
+  for (const w of candidates) {
+    if (!existing.has(w)) fresh.push({ word: w, status: 'PENDING', priority: 20 }) // vocab-level priority
+  }
+  if (fresh.length > 0) {
+    await prisma.dictionaryEntry.createMany({ data: fresh, skipDuplicates: true })
+  }
+}
+
+/**
  * Crawl the next `limit` pending words. Safe to call repeatedly — each call
  * advances the pool by up to `limit` words and stops.
  */
@@ -127,6 +159,7 @@ export async function crawlDictionaryBatch(cfg: CrawlDictionaryConfig = defaultC
             crawledAt: new Date(),
           },
         })
+        await enqueueRelatedWords(prisma, entry)
         done++
       } else {
         await prisma.dictionaryEntry.update({

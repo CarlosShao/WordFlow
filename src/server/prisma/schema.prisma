@@ -17,16 +17,16 @@ model User {
   password  String?
   githubId  String?  @unique
   avatarUrl String?
-  settings  Json?   // 用户偏好设置（主题、字体大小等）
+  settings  Json? // 用户偏好设置（主题、字体大小等）
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  vocabularies         Vocabulary[]
-  practiceSessions     PracticeSession[]
-  mistakes             Mistake[]
+  vocabularies            Vocabulary[]
+  practiceSessions        PracticeSession[]
+  mistakes                Mistake[]
   userContentInteractions UserContentInteraction[]
-  refreshTokens        RefreshToken[]
+  refreshTokens           RefreshToken[]
 
   @@map("users")
 }
@@ -46,37 +46,37 @@ model RefreshToken {
 // ==================== 内容系统 ====================
 
 model Content {
-  id          String   @id @default(uuid())
+  id          String      @id @default(uuid())
   type        ContentType
   title       String
   source      String
-  sourceUrl   String?  @map("source_url")
+  sourceUrl   String?     @map("source_url")
   author      String?
   difficulty  Difficulty?
-  coverUrl    String?  @map("cover_url")
+  coverUrl    String?     @map("cover_url")
   summary     String?
   translation String?
-  content     String?        // 原文正文
-  audioUrl    String? @map("audio_url")   // 音频URL
-  videoUrl    String? @map("video_url")   // 视频URL
-  tags        Json?          // 分类标签 JSON 数组
+  content     String? // 原文正文
+  audioUrl    String?     @map("audio_url") // 音频URL
+  videoUrl    String?     @map("video_url") // 视频URL
+  tags        Json? // 分类标签 JSON 数组
   segments    Json?
   duration    Int?
-  viewCount   Int      @default(0) @map("view_count")
-  isPublished Boolean  @default(true) @map("is_published")
-  publishedAt DateTime? @map("published_at")
-  processedAt DateTime? @map("processed_at")
-  createdBy   String?  @map("created_by")
-  bookId      String?  @map("book_id")      // 所属真题书（剑13 / TPO1 等）
-  bookOrder   Int?     @map("book_order")   // 书内顺序（阅读/听力分区）
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  viewCount   Int         @default(0) @map("view_count")
+  isPublished Boolean     @default(true) @map("is_published")
+  publishedAt DateTime?   @map("published_at")
+  processedAt DateTime?   @map("processed_at")
+  createdBy   String?     @map("created_by")
+  bookId      String?     @map("book_id") // 所属真题书（剑13 / TPO1 等）
+  bookOrder   Int?        @map("book_order") // 书内顺序（阅读/听力分区）
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
 
   // Relations
   userInteractions UserContentInteraction[]
   vocabularies     Vocabulary[]
   mistakes         Mistake[]
-  book             ExamBook?          @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  book             ExamBook?                @relation(fields: [bookId], references: [id], onDelete: SetNull)
   contentQuestions ContentQuestion[]
 
   @@unique([source, sourceUrl])
@@ -89,17 +89,17 @@ model Content {
 }
 
 model UserContentInteraction {
-  id           String   @id @default(uuid())
-  userId       String   @map("user_id")
-  contentId    String   @map("content_id")
-  isFavorited  Boolean  @default(false) @map("is_favorited")
-  isRead       Boolean  @default(false) @map("is_read")
+  id           String        @id @default(uuid())
+  userId       String        @map("user_id")
+  contentId    String        @map("content_id")
+  isFavorited  Boolean       @default(false) @map("is_favorited")
+  isRead       Boolean       @default(false) @map("is_read")
   mastery      MasteryStatus @default(NOT_REVIEWED) @map("mastery")
   note         String?
-  lastViewedAt DateTime? @map("last_viewed_at")
-  lastReadAt   DateTime? @map("last_read_at")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  lastViewedAt DateTime?     @map("last_viewed_at")
+  lastReadAt   DateTime?     @map("last_read_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
@@ -115,8 +115,9 @@ model UserContentInteraction {
 model ExamBook {
   id          String       @id @default(uuid())
   category    ExamCategory
+  dataSource  BookDataSource @default(LEGACY) @map("data_source")
   title       String
-  coverUrl    String?      @map("cover_url")   // 实体书封面
+  coverUrl    String?      @map("cover_url") // 实体书封面
   year        Int?
   description String?
   contents    Content[]
@@ -124,6 +125,7 @@ model ExamBook {
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
   @@index([category])
+  @@index([dataSource])
   @@map("exam_books")
 }
 
@@ -132,8 +134,8 @@ model ContentQuestion {
   contentId   String           @map("content_id")
   type        ExamQuestionType
   stem        String
-  options     Json?            // 选项（单选/多选/判断）
-  answer      Json             // 灵活答案（["A"] / {"1":"True"} / 填空词等）
+  options     Json? // 选项（单选/多选/判断）
+  answer      Json // 灵活答案（["A"] / {"1":"True"} / 填空词等）
   explanation String?
   order       Int              @default(0)
   audioUrl    String?          @map("audio_url")
@@ -148,42 +150,53 @@ model ContentQuestion {
 enum ExamCategory {
   IELTS
   TOEFL
+  GRE
+  CET4
+  CET6
+  KAOYAN
+}
+
+enum BookDataSource {
+  LEGACY      // 网盘扫描件 OCR 数据（旧数据）
+  CURATED     // 精选高质量数据源（按调研文档推荐源导入）
+  OFFICIAL    // 官方免费样题（ETS/BC/IELTS.org 等）
+  OPENSOURCE  // 开源项目数据（HelloCET/m2kar/ERICXUCHI 等）
 }
 
 enum ExamQuestionType {
-  MCQ                  // 单选
-  MCQ_MULTI            // 多选
+  MCQ // 单选
+  MCQ_MULTI // 多选
   TRUE_FALSE_NOT_GIVEN // 对/错/未提及
-  MATCHING             // 配对
-  COMPLETION           // 填空/完成句子
-  SHORT_ANSWER         // 简答
+  MATCHING // 配对
+  COMPLETION // 填空/完成句子
+  SHORT_ANSWER // 简答
 }
 
 // ==================== 词汇系统 ====================
 
 model Vocabulary {
-  id              String   @id @default(uuid())
-  userId          String   @map("user_id")
-  word            String
-  phonetic        String?
-  definition      String?
-  translation     String?
-  examples        Json?
-  etymology       String?
-  tags            Json?
-  note            String?
-  contentId       String?  @map("content_id")
+  id             String        @id @default(uuid())
+  userId         String        @map("user_id")
+  word           String
+  phonetic       String?
+  definition     String?
+  translation    String?
+  examples       Json?
+  etymology      String?
+  tags           Json?
+  note           String?
+  contentId      String?       @map("content_id")
   // SM-2 Algorithm Fields
-  easeFactor      Float    @default(2.5) @map("ease_factor")
-  interval        Int      @default(0)
-  repetitions     Int      @default(0)
-  nextReviewDate  DateTime? @map("next_review_date")
-  lastReviewDate  DateTime? @map("last_review_date")
-  masteredAt      DateTime? @map("mastered_at")
+  easeFactor     Float         @default(2.5) @map("ease_factor")
+  interval       Int           @default(0)
+  repetitions    Int           @default(0)
+  nextReviewDate DateTime?     @map("next_review_date")
+  lastReviewDate DateTime?     @map("last_review_date")
+  masteredAt     DateTime?     @map("mastered_at")
   // Mastery status (computed from SM-2 state)
-  masteryStatus   MasteryStatus @default(NOT_REVIEWED) @map("mastery_status")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  masteryStatus  MasteryStatus @default(NOT_REVIEWED) @map("mastery_status")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   content  Content?  @relation(fields: [contentId], references: [id], onDelete: SetNull)
@@ -225,20 +238,20 @@ enum DictionaryStatus {
 // ==================== 练习系统 ====================
 
 model PracticeSession {
-  id          String   @id @default(uuid())
-  userId      String   @map("user_id")
-  contentId   String?  @map("content_id")
-  title       String?
-  status      SessionStatus @default(IN_PROGRESS) @map("status")
-  totalQuestions Int   @map("total_questions")
-  correctCount   Int   @map("correct_count")
-  wrongCount     Int   @map("wrong_count") @default(0)
-  score       Float?
-  duration    Int?
-  completedAt DateTime? @map("completed_at")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id             String        @id @default(uuid())
+  userId         String        @map("user_id")
+  contentId      String?       @map("content_id")
+  title          String?
+  status         SessionStatus @default(IN_PROGRESS) @map("status")
+  totalQuestions Int           @map("total_questions")
+  correctCount   Int           @map("correct_count")
+  wrongCount     Int           @default(0) @map("wrong_count")
+  score          Float?
+  duration       Int?
+  completedAt    DateTime?     @map("completed_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
 
-  user     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions PracticeQuestion[]
 
   @@index([userId, createdAt])
@@ -247,26 +260,26 @@ model PracticeSession {
 }
 
 model PracticeQuestion {
-  id              String   @id @default(uuid())
-  sessionId       String   @map("session_id")
-  vocabularyId    String?  @map("vocabulary_id")
-  contentId       String?  @map("content_id")
-  type            QuestionType
-  stem            String
-  options         Json?
-  correctAnswer   String   @map("correct_answer")
-  answerJson      Json?    // 灵活答案（配对映射、多选、判断等）
-  audioUrl        String?  @map("audio_url")   // 听力音频
-  passage         String?  // 阅读原文片段
-  userAnswer      String?  @map("user_answer")
-  userAnswerJson  Json?    @map("user_answer_json")
-  isCorrect       Boolean? @map("is_correct")
-  explanation     String?
-  contentSegment  String?  @map("content_segment")
-  difficulty      Difficulty?
-  points          Int      @default(0)
-  timeSpent       Int?     @map("time_spent")
-  createdAt       DateTime @default(now()) @map("created_at")
+  id             String       @id @default(uuid())
+  sessionId      String       @map("session_id")
+  vocabularyId   String?      @map("vocabulary_id")
+  contentId      String?      @map("content_id")
+  type           QuestionType
+  stem           String
+  options        Json?
+  correctAnswer  String       @map("correct_answer")
+  answerJson     Json? // 灵活答案（配对映射、多选、判断等）
+  audioUrl       String?      @map("audio_url") // 听力音频
+  passage        String? // 阅读原文片段
+  userAnswer     String?      @map("user_answer")
+  userAnswerJson Json?        @map("user_answer_json")
+  isCorrect      Boolean?     @map("is_correct")
+  explanation    String?
+  contentSegment String?      @map("content_segment")
+  difficulty     Difficulty?
+  points         Int          @default(0)
+  timeSpent      Int?         @map("time_spent")
+  createdAt      DateTime     @default(now()) @map("created_at")
 
   session PracticeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
@@ -278,27 +291,27 @@ model PracticeQuestion {
 // ==================== 错题系统 ====================
 
 model Mistake {
-  id              String   @id @default(uuid())
-  userId          String   @map("user_id")
-  vocabularyId    String?  @map("vocabulary_id")
-  contentId       String?  @map("content_id")
-  questionId      String?  @map("question_id")
-  questionType    QuestionType @map("question_type")
-  question        String
-  correctAnswer   String   @map("correct_answer")
-  userAnswer      String?  @map("user_answer")
-  wrongAnswer     String?  @map("wrong_answer")
-  explanation     String?
-  contentSegment  String?  @map("content_segment")
-  difficulty      Difficulty?
-  masteryStatus   MasteryStatus @default(NOT_REVIEWED) @map("mastery_status")
-  reviewCount     Int      @default(0) @map("review_count")
-  lastWrongAt     DateTime? @map("last_wrong_at")
-  lastReviewDate  DateTime? @map("last_review_date")
-  nextReviewDate  DateTime? @map("next_review_date")
-  masteredAt      DateTime? @map("mastered_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id             String        @id @default(uuid())
+  userId         String        @map("user_id")
+  vocabularyId   String?       @map("vocabulary_id")
+  contentId      String?       @map("content_id")
+  questionId     String?       @map("question_id")
+  questionType   QuestionType  @map("question_type")
+  question       String
+  correctAnswer  String        @map("correct_answer")
+  userAnswer     String?       @map("user_answer")
+  wrongAnswer    String?       @map("wrong_answer")
+  explanation    String?
+  contentSegment String?       @map("content_segment")
+  difficulty     Difficulty?
+  masteryStatus  MasteryStatus @default(NOT_REVIEWED) @map("mastery_status")
+  reviewCount    Int           @default(0) @map("review_count")
+  lastWrongAt    DateTime?     @map("last_wrong_at")
+  lastReviewDate DateTime?     @map("last_review_date")
+  nextReviewDate DateTime?     @map("next_review_date")
+  masteredAt     DateTime?     @map("mastered_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   vocabulary Vocabulary? @relation(fields: [vocabularyId], references: [id], onDelete: SetNull)
@@ -317,6 +330,8 @@ enum ContentType {
   ARTICLE
   VIDEO
   PODCAST
+  LISTENING // 真题听力（TOEFL TPO / IELTS 剑雅）
+  SPEAKING // 真题口语
 }
 
 enum Difficulty {
@@ -342,12 +357,12 @@ enum QuestionType {
   GRAMMAR
   VOCABULARY
   LISTENING
-  MCQ                 // 单选
-  MCQ_MULTI           // 多选
+  MCQ // 单选
+  MCQ_MULTI // 多选
   TRUE_FALSE_NOT_GIVEN // 对/错/未提及
-  MATCHING            // 配对
-  COMPLETION          // 填空/完成句子
-  SHORT_ANSWER        // 简答
+  MATCHING // 配对
+  COMPLETION // 填空/完成句子
+  SHORT_ANSWER // 简答
 }
 
 enum SessionStatus {
@@ -359,19 +374,19 @@ enum SessionStatus {
 // ==================== 爬虫系统 ====================
 
 model CrawlerSource {
-  id            String   @id @default(uuid())
+  id            String            @id @default(uuid())
   name          String
   url           String
   type          CrawlerSourceType
   contentType   ContentType
   difficulty    Difficulty
-  enabled       Boolean  @default(true)
-  crawlInterval Int      @default(1440) @map("crawl_interval") // 分钟，默认每天
-  lastCrawledAt DateTime? @map("last_crawled_at")
-  lastStatus    String?  @map("last_status") // success / error
-  lastError     String?  @map("last_error")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  enabled       Boolean           @default(true)
+  crawlInterval Int               @default(1440) @map("crawl_interval") // 分钟，默认每天
+  lastCrawledAt DateTime?         @map("last_crawled_at")
+  lastStatus    String?           @map("last_status") // success / error
+  lastError     String?           @map("last_error")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
 
   @@index([enabled])
   @@map("crawler_sources")
@@ -388,4 +403,25 @@ enum CrawlerSourceType {
   PODCAST
   IELTS
   TOEFL
+  BILIBILI
 }
+
+// ==================== LLM Provider 配置 ====================
+// 系统级 LLM 提供商（agnes 主力 / stepfun 兜底等），前后台共用的唯一事实源。
+// callLlm 按 priority 升序尝试：429/超时/5xx 立即切下一个并给失败者加 60s 冷却。
+// 表为空时 callLlm 回落 AI_* 环境变量（兼容旧脚本），因此删除全部行也不断服务。
+
+model AiProvider {
+  id        String   @id @default(uuid())
+  name      String // 展示名，如 "agnes（主力）"
+  baseUrl   String   @map("base_url") // OpenAI 兼容端点，如 https://api.agnes-ai.cn/v1
+  apiKey    String   @map("api_key")
+  model     String // 模型名，如 agnes-2.5-flash
+  priority  Int      @default(100) // 越小越先尝试
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_providers")
+}
+

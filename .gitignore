@@ -37,3 +37,33 @@ _*.mjs
 src/scripts/debug/
 src/server/src/test-debug/
 src/server/src/scripts/dbg-*.ts
+
+# Tool runtime / scratch directories
+.catpaw/
+.cluster/
+.commandcode/
+.openclaw/
+.openclaw-attachments/
+
+# Local log files (any extension)
+*-log.txt
+*-log*.txt
+
+# Large binary / resource artifacts (never commit)
+DELIVERY/
+src/server/src/scripts/ielts-audio/
+src/server/src/scripts/ielts_final.json
+src/scripts/zhenti/
+*.mp3
+*.dump
+*.pdf
+# DB backup dumps (keep Prisma migrations)
+backup_*.sql
+*-backup-*.sql
+*_backup_*.sql
+
+# Prisma migrations are source code — always keep them
+!src/server/prisma/migrations/**
+
+# scripts/ 是正式脚本目录（与一次性诊断脚本不同），纳入版本管理
+!scripts/**

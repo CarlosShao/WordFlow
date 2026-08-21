@@ -88,6 +88,52 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: null })
   })
 
+  // ---- Get user profile ----
+  app.get('/api/v1/auth/profile', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = request.user!.id
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) throw new AppError(ErrorType.NOT_FOUND, '用户不存在', 404)
+    return reply.send({
+      success: true,
+      data: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatarUrl,
+        avatarUrl: user.avatarUrl,
+        githubId: user.githubId,
+        settings: user.settings,
+        createdAt: user.createdAt,
+      },
+    })
+  })
+
+  // ---- Update user profile ----
+  app.put('/api/v1/auth/profile', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const schema = z.object({ username: z.string().min(1).max(50).optional(), avatar: z.string().url().optional().or(z.string().max(2048).optional()), avatarUrl: z.string().url().optional().or(z.string().max(2048).optional()) })
+    const parsed = schema.safeParse(request.body)
+    if (!parsed.success) throw new AppError(ErrorType.VALIDATION, parsed.error.issues[0]?.message ?? '请求参数错误', 400, parsed.error.issues)
+    const userId = request.user!.id
+    const data: Record<string, string | null> = {}
+    if (parsed.data.username) data.username = parsed.data.username
+    const nextAvatar = parsed.data.avatar ?? parsed.data.avatarUrl
+    if (nextAvatar !== undefined) data.avatarUrl = (nextAvatar as string) || null
+    const updated = await prisma.user.update({ where: { id: userId }, data })
+    return reply.send({
+      success: true,
+      data: {
+        id: updated.id,
+        username: updated.username,
+        email: updated.email,
+        avatar: updated.avatarUrl,
+        avatarUrl: updated.avatarUrl,
+        githubId: updated.githubId,
+        settings: updated.settings,
+        createdAt: updated.createdAt,
+      },
+    })
+  })
+
   // ---- Get user settings ----
   app.get('/api/v1/auth/settings', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const userId = request.user!.id
@@ -105,7 +151,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     const updated = await prisma.user.update({
       where: { id: userId },
-      data: { settings: merged },
+      data: { settings: merged as any },
       select: { settings: true },
     })
 

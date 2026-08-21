@@ -19,6 +19,55 @@ const bilibiliDashSchema = z.object({
 })
 
 export async function mediaRoutes(app: FastifyInstance) {
+  // Proxy Bilibili cover images.
+  //
+  // Bilibili's image CDN (hdslb.com) returns 403 when the request carries a
+  // Referer from a non-bilibili origin (e.g. http://localhost:5173), so plain
+  // <img src="https://i*.hdslb.com/..."> tags fail in the browser. This
+  // endpoint fetches the image server-side (no Referer -> 200) and streams it
+  // back, defeating hotlink protection. The frontend rewrites cover URLs to
+  // this endpoint when they point at hdslb.com.
+  app.get('/api/v1/media/cover', async (request, reply) => {
+    const { url } = z.object({ url: z.string().url() }).parse(request.query)
+    const urlObj = new URL(url)
+    const isBili = urlObj.hostname.endsWith('hdslb.com') || urlObj.hostname.includes('bilibili')
+    if (!isBili) {
+      throw new AppError('FORBIDDEN', '仅允许代理 B 站图片', 403)
+    }
+
+    let response: Response
+    try {
+      response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://www.bilibili.com',
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        },
+      })
+    } catch (fetchErr) {
+      logger.error({ err: (fetchErr as Error).message, url }, 'cover proxy upstream fetch failed')
+      throw new AppError('BAD_GATEWAY', `封面获取失败: ${(fetchErr as Error).message}`, 502)
+    }
+
+    if (!response.ok) {
+      throw new AppError('BAD_GATEWAY', `封面获取失败: ${response.status}`, 502)
+    }
+
+    const contentType = response.headers.get('content-type') || 'image/jpeg'
+    const buf = Buffer.from(await response.arrayBuffer())
+    return reply
+      .header('Content-Type', contentType)
+      .header('Cache-Control', 'public, max-age=86400')
+      .header('Access-Control-Allow-Origin', '*')
+      // @fastify/helmet sets Cross-Origin-Resource-Policy: same-origin by
+      // default, which makes the browser refuse to render this image when the
+      // page origin is localhost:5173 and the image comes from localhost:3002.
+      // Override to cross-origin so <img> tags load it.
+      .header('Cross-Origin-Resource-Policy', 'cross-origin')
+      .header('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
+      .send(buf)
+  })
+
   // Proxy Bilibili video stream for native playback
   // Used by the frontend to get a direct video URL instead of embedding an iframe
   app.get('/api/v1/media/bilibili', async (request, reply) => {

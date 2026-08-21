@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getPrisma } from '../../common/prisma.js'
 import { logger } from '../../common/logger.js'
 import { config } from '../../config/index.js'
+import { callLlm as callLlmViaProviders, invalidateLlmProviderCache } from '../ai-processing/llm.js'
 
 const translateSchema = z.object({
   text: z.string().min(1).max(5000),
@@ -28,7 +29,10 @@ const generateQuestionSchema = z.object({
   questionType: z.enum(['MULTIPLE_CHOICE', 'FILL_BLANK', 'TRANSLATION', 'LISTENING']).optional(),
   /** 直接传入文本内容（优先级最高，无需查库） */
   text: z.string().min(1).max(10000).optional(),
-  difficulty: z.string().max(10).optional(), // CEFR level
+  // CEFR level. Accept the DB's full enum values (e.g. UPPER_INTERMEDIATE,
+  // 17 chars) — the previous max(10) rejected them and 400'd every request
+  // for contents at those difficulty levels.
+  difficulty: z.string().max(30).optional(),
 })
 
 const testConnectionSchema = z.object({
@@ -40,30 +44,39 @@ const testConnectionSchema = z.object({
 /**
  * Extract custom AI config from request headers.
  * Headers: x-custom-api-key, x-custom-base-url, x-custom-model
+ *
+ * Returns ONLY the fields actually present in headers. Callers merge with
+ * their own fallbacks; when every field is absent, callLlm() delegates to
+ * the system providers (ai_providers rotation) instead of a direct fetch.
  */
 function getCustomAiConfig(request: FastifyRequest): {
-  apiKey: string
-  apiBaseUrl: string
-  model: string
+  apiKey?: string
+  apiBaseUrl?: string
+  model?: string
 } {
   const customKey = request.headers['x-custom-api-key'] as string | undefined
   const customBaseUrl = request.headers['x-custom-base-url'] as string | undefined
   const customModel = request.headers['x-custom-model'] as string | undefined
 
   return {
-    apiKey: customKey && customKey.trim().length > 0 ? customKey.trim() : config.ai.apiKey,
-    apiBaseUrl: customBaseUrl && customBaseUrl.trim().length > 0 ? customBaseUrl.trim() : config.ai.apiBaseUrl,
-    model: customModel && customModel.trim().length > 0 ? customModel.trim() : config.ai.model,
+    ...(customKey && customKey.trim().length > 0 ? { apiKey: customKey.trim() } : {}),
+    ...(customBaseUrl && customBaseUrl.trim().length > 0 ? { apiBaseUrl: customBaseUrl.trim() } : {}),
+    ...(customModel && customModel.trim().length > 0 ? { model: customModel.trim() } : {}),
   }
 }
 
 async function callLlm(
   messages: { role: string; content: string }[],
-  customConfig?: { apiKey: string; apiBaseUrl: string; model: string }
+  customConfig?: { apiKey?: string; apiBaseUrl?: string; model?: string }
 ): Promise<string> {
-  const apiKey = customConfig?.apiKey || config.ai.apiKey
-  const apiBaseUrl = customConfig?.apiBaseUrl || config.ai.apiBaseUrl
-  const model = customConfig?.model || config.ai.model
+  // No per-user override → use the system providers (ai_providers table,
+  // priority rotation + 60s cooldown on failure), same as the data pipeline.
+  if (!customConfig || (!customConfig.apiKey && !customConfig.apiBaseUrl && !customConfig.model)) {
+    return callLlmViaProviders(messages)
+  }
+  const apiKey = customConfig.apiKey || config.ai.apiKey
+  const apiBaseUrl = customConfig.apiBaseUrl || config.ai.apiBaseUrl
+  const model = customConfig.model || config.ai.model
 
   const response = await fetch(`${apiBaseUrl}/chat/completions`, {
     method: 'POST',
@@ -388,11 +401,11 @@ ${sourceText.slice(0, 4000)}
     const body = testConnectionSchema.parse(request.body ?? {})
     const headerConfig = getCustomAiConfig(request)
 
-    // Body params take priority over headers, headers take priority over env defaults
+    // Body params take priority over headers; headers take priority over env defaults
     const testConfig = {
-      apiKey: body.apiKey || headerConfig.apiKey,
-      apiBaseUrl: body.baseUrl || headerConfig.apiBaseUrl,
-      model: body.model || headerConfig.model,
+      apiKey: body.apiKey || headerConfig.apiKey || config.ai.apiKey,
+      apiBaseUrl: body.baseUrl || headerConfig.apiBaseUrl || config.ai.apiBaseUrl,
+      model: body.model || headerConfig.model || config.ai.model,
     }
 
     // Validate key format
@@ -401,15 +414,156 @@ ${sourceText.slice(0, 4000)}
     }
 
     try {
-      const result = await callLlm([
-        { role: 'user', content: 'Reply with "ok" to confirm connectivity.' },
-      ], testConfig)
+      const response = await fetch(`${testConfig.apiBaseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${testConfig.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: testConfig.model,
+          messages: [{ role: 'user', content: 'Reply with "ok" to confirm connectivity.' }],
+          max_tokens: 8,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      })
+      if (!response.ok) {
+        const errText = await response.text().catch(() => response.statusText)
+        return reply.code(502).send({ success: false, error: { message: `LLM API error: ${response.status} - ${errText}` } })
+      }
+      const data = await response.json() as { choices?: { message?: { content?: string } }[] }
+      const replyText = data.choices?.[0]?.message?.content ?? ''
 
-      return reply.send({ success: true, data: { message: '连接成功', model: testConfig.model, reply: result } })
+      return reply.send({ success: true, data: { message: '连接成功', model: testConfig.model, reply: replyText } })
     } catch (err) {
       const message = err instanceof Error ? err.message : '连接测试失败'
       logger.warn({ err, model: testConfig.model }, 'AI test connection failed')
       return reply.code(502).send({ success: false, error: { message } })
+    }
+  })
+
+  // ── 系统级 LLM Provider 管理（前后台统一的事实源）──────────────────────
+  // callLlm（数据管线翻译/摘要/难度 + AI 问答兜底）按 priority 升序使用这里
+  // 的配置：429/超时/5xx 立即切下一个，失败者 60s 冷却。前端设置页读写同
+  // 一组接口，改完 30s 内全后端生效（或被下方写入后的主动失效立即生效）。
+
+  const providerSchema = z.object({
+    name: z.string().min(1).max(100),
+    baseUrl: z.string().url(),
+    apiKey: z.string().min(1).max(500),
+    model: z.string().min(1).max(100),
+    priority: z.number().int().min(1).max(1000).default(100),
+    enabled: z.boolean().default(true),
+  })
+  const providerUpdateSchema = z.object({
+    name: z.string().min(1).max(100).optional(),
+    baseUrl: z.string().url().optional(),
+    // 空=不修改现有 key（前端默认只回传脱敏值）
+    apiKey: z.string().max(500).optional(),
+    model: z.string().min(1).max(100).optional(),
+    priority: z.number().int().min(1).max(1000).optional(),
+    enabled: z.boolean().optional(),
+  })
+
+  // API key 永不回传明文——只回尾 4 位
+  const maskKey = (key: string) => (key.length > 4 ? `****${key.slice(-4)}` : '****')
+
+  app.get('/api/v1/ai/providers', { preHandler: [app.authenticate] }, async () => {
+    const rows = await prisma.aiProvider.findMany({ orderBy: { priority: 'asc' } })
+    return {
+      success: true,
+      data: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        baseUrl: r.baseUrl,
+        apiKeyMasked: maskKey(r.apiKey),
+        model: r.model,
+        priority: r.priority,
+        enabled: r.enabled,
+        updatedAt: r.updatedAt,
+      })),
+    }
+  })
+
+  app.post('/api/v1/ai/providers', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = providerSchema.parse(request.body)
+    const provider = await prisma.aiProvider.create({ data: body })
+    invalidateLlmProviderCache()
+    logger.info({ provider: provider.name }, 'AI provider created')
+    return reply.code(201).send({ success: true, data: { id: provider.id } })
+  })
+
+  app.put('/api/v1/ai/providers/:id', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = providerUpdateSchema.parse(request.body)
+    const data = { ...body }
+    // 空/缺省 apiKey 表示"保持原 key 不变"
+    if (data.apiKey !== undefined && data.apiKey.trim() === '') {
+      delete data.apiKey
+    }
+    const provider = await prisma.aiProvider.update({ where: { id }, data })
+    invalidateLlmProviderCache()
+    logger.info({ provider: provider.name }, 'AI provider updated')
+    return reply.send({ success: true, data: { id: provider.id } })
+  })
+
+  app.delete('/api/v1/ai/providers/:id', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    await prisma.aiProvider.delete({ where: { id } })
+    invalidateLlmProviderCache()
+    logger.info({ providerId: id }, 'AI provider deleted')
+    return reply.send({ success: true })
+  })
+
+  // 测试单个 provider（body 带 id 测库内配置；带完整 baseUrl/apiKey/model 测未保存的草稿）
+  app.post('/api/v1/ai/providers/test', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = z
+      .object({
+        id: z.string().optional(),
+        baseUrl: z.string().url().optional(),
+        apiKey: z.string().optional(),
+        model: z.string().optional(),
+      })
+      .parse(request.body ?? {})
+
+    let cfg: { baseUrl: string; apiKey: string; model: string }
+    if (body.id) {
+      const row = await prisma.aiProvider.findUnique({ where: { id: body.id } })
+      if (!row) return reply.code(404).send({ success: false, error: { message: 'provider 不存在' } })
+      cfg = { baseUrl: row.baseUrl, apiKey: row.apiKey, model: row.model }
+    } else if (body.baseUrl && body.apiKey && body.model) {
+      cfg = { baseUrl: body.baseUrl, apiKey: body.apiKey, model: body.model }
+    } else {
+      return reply.code(400).send({ success: false, error: { message: '需要 id 或完整的 baseUrl/apiKey/model' } })
+    }
+
+    const started = Date.now()
+    try {
+      const response = await fetch(`${cfg.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${cfg.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: cfg.model,
+          messages: [{ role: 'user', content: 'Reply with "ok".' }],
+          max_tokens: 8,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      })
+      const ms = Date.now() - started
+      if (!response.ok) {
+        const errText = await response.text().catch(() => response.statusText)
+        return reply.send({ success: false, data: { ok: false, status: response.status, latencyMs: ms, message: errText.slice(0, 200) } })
+      }
+      return reply.send({ success: true, data: { ok: true, status: 200, latencyMs: ms, model: cfg.model } })
+    } catch (err) {
+      const ms = Date.now() - started
+      return reply.send({
+        success: true,
+        data: { ok: false, status: 0, latencyMs: ms, message: (err as Error).message?.slice(0, 200) ?? 'unknown' },
+      })
     }
   })
 }

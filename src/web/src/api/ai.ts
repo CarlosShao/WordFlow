@@ -215,3 +215,66 @@ export function configureAI(config: Partial<AIConfig>) {
     // settings store 未初始化时静默忽略
   }
 }
+
+// ── 系统级 LLM Provider（前后台统一事实源，后端 callLlm 按此轮换）──────
+export interface AiProvider {
+  id: string
+  name: string
+  baseUrl: string
+  apiKeyMasked: string
+  model: string
+  priority: number
+  enabled: boolean
+  updatedAt: string
+}
+
+export interface AiProviderTestResult {
+  ok: boolean
+  status: number
+  latencyMs: number
+  model?: string
+  message?: string
+}
+
+export const aiProvidersApi = {
+  async list(): Promise<AiProvider[]> {
+    const data = await client.get('/api/v1/ai/providers')
+    return ((data as any)?.data ?? []) as AiProvider[]
+  },
+
+  async create(provider: {
+    name: string
+    baseUrl: string
+    apiKey: string
+    model: string
+    priority?: number
+    enabled?: boolean
+  }): Promise<{ id: string }> {
+    const data = await client.post('/api/v1/ai/providers', provider)
+    return (data as any)?.data ?? { id: '' }
+  },
+
+  async update(
+    id: string,
+    patch: Partial<{
+      name: string
+      baseUrl: string
+      /** 仅在用户输入了新 key 时提交；空字符串=保持不变 */
+      apiKey: string
+      model: string
+      priority: number
+      enabled: boolean
+    }>,
+  ): Promise<void> {
+    await client.put(`/api/v1/ai/providers/${id}`, patch)
+  },
+
+  async remove(id: string): Promise<void> {
+    await client.delete(`/api/v1/ai/providers/${id}`)
+  },
+
+  async test(payload: { id?: string; baseUrl?: string; apiKey?: string; model?: string }): Promise<AiProviderTestResult> {
+    const data = await client.post('/api/v1/ai/providers/test', payload)
+    return (data as any)?.data ?? { ok: false, status: 0, latencyMs: 0 }
+  },
+}

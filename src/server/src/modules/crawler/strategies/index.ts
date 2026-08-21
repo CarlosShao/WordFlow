@@ -10,6 +10,7 @@ import { voaStrategy } from './voa.js'
 import { podcastStrategy } from './podcast.js'
 import { ieltsStrategy } from './ielts.js'
 import { toeflStrategy } from './toefl.js'
+import { bilibiliStrategy } from './bilibili.js'
 
 /**
  * Strategy registry — maps source type to its crawl implementation
@@ -25,6 +26,7 @@ const strategyMap: Record<CrawlerSourceType, CrawlStrategy> = {
   PODCAST: podcastStrategy,
   IELTS: ieltsStrategy,
   TOEFL: toeflStrategy,
+  BILIBILI: bilibiliStrategy,
 }
 
 /**

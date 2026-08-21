@@ -4,6 +4,7 @@ import helmet from '@fastify/helmet'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
 import multipart from '@fastify/multipart'
+import compress from '@fastify/compress'
 import { setGlobalDispatcher, Agent } from 'undici'
 import { config } from './config/index.js'
 import { errorHandler } from './common/errors.js'
@@ -29,6 +30,7 @@ import { aiProcessingModule } from './modules/ai-processing/index.js'
 import { uploadRoutes } from './modules/upload/index.js'
 import { dictionaryModule } from './modules/dictionary/index.js'
 import { mediaRoutes } from './modules/media/index.js'
+import { examRoutes } from './modules/exam/index.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -41,6 +43,11 @@ export async function buildApp() {
   // Middleware
   await app.register(cors, { origin: config.corsOrigin, credentials: true })
   await app.register(helmet, { contentSecurityPolicy: false })
+  // gzip/deflate response compression. The content detail + segments
+  // endpoints return ~1MB of JSON for season-long videos (e.g. Key & Peele);
+  // compressing cuts transfer to ~150-250KB. The dev docker-compose setup has
+  // no nginx in front, so the app itself must compress.
+  await app.register(compress, { global: true })
 
   // Swagger docs
   await app.register(swagger, {
@@ -86,6 +93,7 @@ export async function buildApp() {
   await app.register(uploadRoutes)
   await app.register(dictionaryModule)
   await app.register(mediaRoutes)
+  await app.register(examRoutes)
 
   return app
 }

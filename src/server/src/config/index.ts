@@ -13,10 +13,12 @@ const envSchema = z.object({
 
   MINIO_ENDPOINT: z.string().default('localhost'),
   MINIO_PORT: z.coerce.number().default(9000),
-  MINIO_USE_SSL: z.coerce.boolean().default(false),
+  MINIO_USE_SSL: z.enum(['true', 'false', '1', '0', '']).transform((v) => v === 'true' || v === '1').default('false'),
   MINIO_ACCESS_KEY: z.string(),
   MINIO_SECRET_KEY: z.string(),
   MINIO_BUCKET: z.string().default('wordflow-uploads'),
+  MINIO_PUBLIC_ENDPOINT: z.string().optional(),
+  MINIO_PUBLIC_PORT: z.coerce.number().optional(),
 
   JWT_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
@@ -27,9 +29,9 @@ const envSchema = z.object({
   GITHUB_CLIENT_SECRET: z.string(),
   GITHUB_CALLBACK_URL: z.string().default('http://localhost:3000/api/v1/auth/github/callback'),
 
-  AI_API_BASE_URL: z.string().default('https://api.deepseek.com/v1'),
+  AI_API_BASE_URL: z.string().default('https://api.agnes-ai.cn/v1'),
   AI_API_KEY: z.string(),
-  AI_MODEL: z.string().default('deepseek-chat'),
+  AI_MODEL: z.string().default('agnes-2.5-flash'),
 
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
 
@@ -42,7 +44,7 @@ const envSchema = z.object({
 
   // 词典爬取配置
   DICT_CRAWL_ENABLED: z.coerce.boolean().default(true),
-  DICT_CRAWL_CRON: z.string().default('0 3 * * *'), // 默认每天 3:00
+  DICT_CRAWL_CRON: z.string().default('0 9 * * *'), // 默认每天 9:00（适配开发机白天常开）
   DICT_CRAWL_DAILY_LIMIT: z.coerce.number().default(1000), // 每日上限
   DICT_CRAWL_DELAY_MS: z.coerce.number().default(1200), // 单词间间隔
   DICT_CRAWL_BATCH_SIZE: z.coerce.number().default(50), // 每批词数
@@ -74,6 +76,8 @@ export const config = {
     accessKey: parsed.data.MINIO_ACCESS_KEY,
     secretKey: parsed.data.MINIO_SECRET_KEY,
     bucket: parsed.data.MINIO_BUCKET,
+    publicEndpoint: parsed.data.MINIO_PUBLIC_ENDPOINT ?? (parsed.data.MINIO_ENDPOINT === 'minio' ? 'localhost' : parsed.data.MINIO_ENDPOINT),
+    publicPort: parsed.data.MINIO_PUBLIC_PORT ?? parsed.data.MINIO_PORT,
   },
 
   jwt: {

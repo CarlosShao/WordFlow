@@ -12,6 +12,36 @@
         />
       </div>
 
+      <!-- Full-text Search -->
+      <div class="filter-row">
+        <span class="filter-label">搜索</span>
+        <div class="search-input-wrap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            v-model="searchKeyword"
+            type="text"
+            class="search-input"
+            placeholder="标题/摘要/正文全文搜索..."
+            @input="onSearchInput"
+            @keyup.enter="triggerSearch"
+          />
+          <button
+            v-if="searchKeyword"
+            class="search-clear"
+            aria-label="清空"
+            @click="clearSearch"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
       <!-- Category Pills -->
       <div class="filter-row">
         <span class="filter-label">分类</span>
@@ -133,12 +163,27 @@
       icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
     />
 
-    <!-- Content Grouped by Source -->
+    <!-- Content Grouped by Source (each group has its own pagination) -->
     <section v-else class="content-sections">
-      <div v-for="[source, items] in groupedItems" :key="source" class="source-section">
-        <div class="source-header">
+      <div class="bulk-toggle-row">
+        <button class="bulk-toggle-btn" type="button" @click="expandAll">全部展开</button>
+        <button class="bulk-toggle-btn" type="button" @click="collapseAll">全部折叠</button>
+      </div>
+      <div v-for="[source, items] in groupedItems" :key="source" class="source-section" :class="{ collapsed: !isExpanded(source) }">
+        <div
+          class="source-header"
+          @click="toggleGroup(source)"
+        >
+          <svg
+            class="collapse-toggle"
+            :class="{ open: isExpanded(source) }"
+            width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
           <h3 class="source-name">{{ source }}</h3>
-          <span class="source-count">{{ items.length }} 篇</span>
+          <span class="source-count">{{ items.length }} 条</span>
           <button
             v-if="getSourceCrawlId(source)"
             class="btn-mini-crawl"
@@ -150,16 +195,17 @@
             爬取此来源
           </button>
         </div>
+        <div v-if="isExpanded(source)" class="collapsible-body">
         <div class="content-grid">
           <article
-            v-for="item in items"
+            v-for="item in paginatedItems(source, items)"
             :key="item.id"
             class="content-card"
             @click="goToDetail(item.id)"
           >
             <!-- Cover Image -->
             <div class="card-cover" :class="`cover-${item.type}`">
-              <img v-if="item.coverImage" :src="item.coverImage" :alt="item.title" />
+              <img v-if="item.coverImage" :src="item.coverImage" :alt="item.title" referrerpolicy="no-referrer" />
               <div v-else class="cover-placeholder" :class="`placeholder-${item.type}`">
                 <!-- Article icon -->
                 <svg v-if="item.type === 'article'" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -216,7 +262,7 @@
                   </svg>
                   {{ getDurationLabel(item) }}
                 </span>
-                <span v-if="item.content" class="footer-stat has-content">
+                <span v-if="item.hasContent ?? item.content" class="footer-stat has-content">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
                     <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
@@ -227,18 +273,30 @@
             </div>
           </article>
         </div>
+        <SourcePagination
+          v-if="isExpanded(source)"
+          :page="getGroupPage(source)"
+          :total="items.length"
+          :page-size="getGroupPageSize(source)"
+          :theme="getThemeForSource(source)"
+          :collection="source"
+          @update:page="(p: number) => setGroupPage(source, p)"
+          @update:page-size="(s: number) => setGroupPageSize(source, s)"
+        />
+        </div>
       </div>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { PageHeader, Skeleton, EmptyState, BaseTabs } from '../components'
+import { PageHeader, Skeleton, EmptyState, BaseTabs, SourcePagination } from '../components'
 import { useContentStore } from '../stores/content'
 import { crawlerApi, crawlSource as _crawlSource, crawlAllSources } from '../api/crawler'
 import { useToast } from '../composables/useToast'
+import { getTypeLabel, getDifficultyLabel } from '../utils/format'
 import type { ContentType, ContentCategory, CEFRLevel } from '../types'
 
 const toast = useToast()
@@ -262,6 +320,22 @@ const selectedSourceLabel = computed(() => {
   const found = crawlerSources.value.find((s: any) => s.id === selectedSourceId.value)
   return found ? `${found.name} (${found.type})` : ''
 })
+
+// Full-text search (debounced)
+const searchKeyword = ref('')
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+function onSearchInput() {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => fetchContent(), 350)
+}
+function triggerSearch() {
+  if (searchTimer) clearTimeout(searchTimer)
+  fetchContent()
+}
+function clearSearch() {
+  searchKeyword.value = ''
+  fetchContent()
+}
 
 // Filtered options for search
 const filteredSourceOptions = computed(() => {
@@ -297,6 +371,7 @@ function handleClickOutside(e: MouseEvent) {
 }
 
 onMounted(() => {
+  loadCollapseState()
   fetchContent()
   loadCrawlerSources()
   document.addEventListener('click', handleClickOutside)
@@ -334,17 +409,172 @@ const difficultyLevels = [
   { value: 'C2' as CEFRLevel, label: 'C2' }
 ]
 
-// Group content items by source
+// Group content items by collection (strip trailing part/episode markers so
+// e.g. "Steve Harvey Hey Steve P1" ... "P100" all land in one section
+// "Steve Harvey Hey Steve", "Key and Peele S1" ..."S5" all land in "Key and
+// Peele", and any "SNL ..." title lands in "SNL").
+function collectionKey(source: string): string {
+  if (!source) return '其他'
+  let s = source.trim()
+  // SNL: any source starting with "SNL" (with optional separator or Chinese
+  // colon) collapses to one "SNL" group, regardless of trailing part markers.
+  if (/^SNL[\s\.\:：]/i.test(s)) return 'SNL'
+  // Strip trailing season/part/episode markers: "P1", "S1", "S01", "E1",
+  // "Part 3", "Ep 2", "Episode 5"
+  s = s.replace(
+    /(\s+(?:P|S|E)\d{1,3}|\s+(?:Part|Ep|Episode|Ep\.|Pt\.?)\s*\d+)\s*$/i,
+    '',
+  ).trim()
+  return s || source
+}
+
+// Group content items by source, sorted naturally within each group so that
+// series/season content (e.g. "第一季", "第五季") appears in logical order
+// instead of reverse-publishedAt (S5 before S1).
 const groupedItems = computed(() => {
   const items = content.items || []
   const map = new Map<string, any[]>()
   for (const item of items) {
-    const source = item.source || '其他'
+    const source = collectionKey(item.source || '')
     if (!map.has(source)) map.set(source, [])
     map.get(source)!.push(item)
   }
+  // Sort each group by title using natural order: extract leading numbers
+  // from titles like "第一季 1-8" / "第五季 1-11" / "S01" so S1 < S2 < …
+  const seasonOrder = (title: string): number => {
+    const m = title.match(/第([一二三四五六七八九十百千]+)季|S(\d+)/i)
+    if (!m) return Infinity
+    const raw = m[1] ?? m[2]
+    // Convert Chinese numerals to Arabic; fallback to parseInt for "S\d+"
+    const cnMap: Record<string, number> = { 一:1,二:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9,十:10,百:100,千:1000 }
+    if (/^\d+$/.test(raw)) return Number(raw)
+    let n = 0
+    for (const ch of raw) n = (n + (cnMap[ch] ?? 0)) * 10
+    return Math.floor(n / 10)
+  }
+  for (const [, arr] of map) {
+    arr.sort((a, b) => seasonOrder(a.title || '') - seasonOrder(b.title || '')
+      || (a.title || '').localeCompare(b.title || '', 'zh-CN', { numeric: true }))
+  }
   return map
 })
+
+// ── Per-source pagination ─────────────────────────────────────
+const DEFAULT_PAGE_SIZE = 12
+// MUST be a reactive object — a plain Map's internal mutations don't trigger
+// re-renders, so clicks on page buttons silently failed before.
+const groupPages = reactive<Record<string, { page: number; pageSize: number }>>({})
+
+function groupState(source: string) {
+  if (!groupPages[source]) {
+    groupPages[source] = { page: 1, pageSize: DEFAULT_PAGE_SIZE }
+  }
+  return groupPages[source]
+}
+
+function getGroupPage(source: string): number {
+  return groupState(source).page
+}
+function getGroupPageSize(source: string): number {
+  return groupState(source).pageSize
+}
+function setGroupPage(source: string, page: number) {
+  // Deep-clone the state so Vue picks the mutation up.
+  const cur = groupState(source)
+  groupPages[source] = { page, pageSize: cur.pageSize }
+}
+function setGroupPageSize(source: string, size: number) {
+  const cur = groupState(source)
+  // Keep the current page valid after resizing
+  const maxPage = Math.max(1, Math.ceil((groupedItems.value.get(source)?.length ?? 0) / size))
+  const page = cur.page > maxPage ? maxPage : cur.page
+  groupPages[source] = { page, pageSize: size }
+}
+
+function paginatedItems(source: string, items: any[]): any[] {
+  const st = groupState(source)
+  const start = (st.page - 1) * st.pageSize
+  return items.slice(start, start + st.pageSize)
+}
+
+// ── Per-group collapse (persisted to localStorage) ──────────────
+const expandedGroups = ref<Record<string, boolean>>({})
+const COLLAPSE_KEY = 'wordflow.content.expandedGroups'
+/** Number of groups auto-expanded on first visit (no stored state). */
+const AUTO_EXPAND_FIRST = 3
+
+function loadCollapseState() {
+  try {
+    const raw = localStorage.getItem(COLLAPSE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      // If the stored state has every group collapsed (the bug we just fixed),
+      // clear it so the "auto-expand first N" logic kicks in.
+      const allCollapsed = Object.values(parsed).every((v: any) => v === false)
+      if (allCollapsed && Object.keys(parsed).length > 0) {
+        localStorage.removeItem(COLLAPSE_KEY)
+        return
+      }
+      expandedGroups.value = { ...parsed }
+    }
+  } catch {
+    /* ignore corrupted state */
+  }
+}
+
+/** Derive per-group expanded state from the reactive record + fallback.
+ *  Using a computed map guarantees Vue tracks every dependency correctly
+ *  (plain function calls with dynamic keys can miss reactivity in edge cases). */
+const expandedMap = computed<Record<string, boolean>>(() => {
+  const result: Record<string, boolean> = {}
+  const keys = Array.from(groupedItems.value.keys())
+  const stored = expandedGroups.value
+  for (const source of keys) {
+    const hasStored = Object.prototype.hasOwnProperty.call(stored, source)
+    result[source] = hasStored
+      ? (stored[source] ?? false)
+      : keys.indexOf(source) < AUTO_EXPAND_FIRST
+  }
+  return result
+})
+
+function isExpanded(source: string): boolean {
+  return expandedMap.value[source] ?? false
+}
+
+function toggleGroup(source: string) {
+  const next = !isExpanded(source)
+  // Whole-object replacement guarantees reactivity fires reliably.
+  expandedGroups.value = { ...expandedGroups.value, [source]: next }
+  try {
+    localStorage.setItem(COLLAPSE_KEY, JSON.stringify(expandedGroups.value))
+  } catch {
+    /* storage full / disabled */
+  }
+}
+
+function expandAll() {
+  const next: Record<string, boolean> = {}
+  for (const k of Object.keys(groupedItems.value)) next[k] = true
+  expandedGroups.value = next
+  try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(expandedGroups.value)) } catch {}
+}
+function collapseAll() {
+  const next: Record<string, boolean> = {}
+  for (const k of Object.keys(groupedItems.value)) next[k] = false
+  expandedGroups.value = next
+  try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(expandedGroups.value)) } catch {}
+}
+
+/** Map a collection name to a pagination theme token for visual variety. */
+function getThemeForSource(source: string): string {
+  const s = source.toLowerCase()
+  if (s.includes('steve') || s.includes('harvey')) return 'steve'
+  if (s.includes('ted') || s.includes('ted-ed')) return 'ted'
+  if (s.includes('snl') || s.includes('saturday night')) return 'snl'
+  if (s.includes('key') || s.includes('peele')) return 'key-peele'
+  return 'article'
+}
 
 async function loadCrawlerSources() {
   try {
@@ -361,8 +591,11 @@ function fetchContent() {
     type: (selectedType.value as ContentType) || undefined,
     category: (selectedCategory.value as ContentCategory) || undefined,
     difficulty: selectedDifficulty.value || undefined,
-    // When "全部" is selected, request mixed types
+    keyword: searchKeyword.value.trim() || undefined,
     mix: !selectedType.value,
+    // 2000 covers current catalog (3.4k total). Backend response is slim
+    // (no segments/translation) so payload stays small.
+    pageSize: 2000,
   })
 }
 
@@ -372,28 +605,12 @@ function goToDetail(id: string) {
   router.push(`/content/${id}`)
 }
 
-function getTypeLabel(type: ContentType): string {
-  const labels: Record<ContentType, string> = {
-    article: '文章',
-    video: '视频',
-    podcast: '播客'
-  }
-  return labels[type]
-}
-
-function getDifficultyLabel(difficulty?: string): string {
-  if (!difficulty) return ''
-  const map: Record<string, string> = {
-    BEGINNER: 'A1 入门', ELEMENTARY: 'A2 基础',
-    INTERMEDIATE: 'B1 中级', UPPER_INTERMEDIATE: 'B2 中高级',
-    ADVANCED: 'C1 高级', PROFICIENT: 'C2 精通',
-  }
-  return map[difficulty] || difficulty
-}
-
 function getDurationLabel(item: any): string {
   if (item.type === 'article') {
-    return `${item.estimatedMinutes || Math.ceil((item.content?.length || 0) / 500)} 分钟`
+    // List API returns `contentLength` (octet_length) instead of the full
+    // `content` text; fall back to `content` for pre-slimming cached data.
+    const len = item.contentLength ?? item.content?.length ?? 0
+    return `${item.estimatedMinutes || Math.max(1, Math.ceil(len / 500))} 分钟`
   }
   if (item.duration) {
     const mins = Math.floor(item.duration / 60)
@@ -530,6 +747,56 @@ async function crawlBySource(sourceName: string) {
   display: flex;
   gap: var(--space-1);
   flex-wrap: wrap;
+}
+
+/* — Search Input — */
+.search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  max-width: 480px;
+  padding: 6px 10px 6px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.search-input-wrap:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-brand-subtle);
+}
+.search-input-wrap svg { flex-shrink: 0; }
+.search-input {
+  flex: 1;
+  padding: 0;
+  font-size: 0.8125rem;
+  font-family: var(--font-sans);
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text);
+  min-width: 0;
+}
+.search-input::placeholder { color: var(--color-text-muted); }
+.search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: var(--color-surface-muted);
+  border: none;
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.search-clear:hover {
+  background: var(--color-border);
+  color: var(--color-text);
 }
 
 .pill-btn {
@@ -860,6 +1127,46 @@ async function crawlBySource(sourceName: string) {
   margin-bottom: var(--space-3);
   padding-bottom: var(--space-2);
   border-bottom: 2px solid var(--color-border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.source-header:hover {
+  border-bottom-color: var(--color-primary);
+}
+
+.collapse-toggle {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform 0.18s ease;
+}
+
+.collapse-toggle.open {
+  transform: rotate(90deg);
+  color: var(--color-primary);
+}
+
+.bulk-toggle-row {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.bulk-toggle-btn {
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.8125rem;
+  font-family: var(--font-sans);
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.bulk-toggle-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .source-name {
