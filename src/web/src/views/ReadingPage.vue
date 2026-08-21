@@ -413,3 +413,10 @@ function startReading() {
   margin: 0;
 }
 </style>
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .reading-page { padding: var(--space-3) !important; }
+  .reading-split { flex-direction: column !important; }
+  .reading-panel { width: 100% !important; max-height: none !important; }
+  .reading-controls { flex-wrap: wrap; gap: var(--space-2); }
+}

@@ -793,3 +793,11 @@ onUnmounted(() => {
   .topbar { padding: 12px 16px; }
 }
 </style>
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .pe-listen .transport-bar { flex-wrap: wrap; gap: var(--space-2); }
+  .pe-listen .rate-select { width: 80px; }
+  .question-card { padding: var(--space-3) !important; margin: 0 var(--space-2) var(--space-3) !important; }
+  .completion-input { max-width: 100% !important; }
+  .writing-input { min-height: 80px !important; }
+}

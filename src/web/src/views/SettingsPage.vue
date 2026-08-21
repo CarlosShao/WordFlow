@@ -674,3 +674,10 @@ function resetSettings() {
   gap: var(--space-2);
 }
 </style>
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .settings-page { padding: var(--space-3) !important; }
+  .settings-section { padding: var(--space-3) !important; }
+  .settings-grid { grid-template-columns: 1fr !important; }
+  .settings-dialog { width: 95vw !important; max-height: 90vh; }
+}
