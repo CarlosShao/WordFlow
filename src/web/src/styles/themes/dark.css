@@ -1,0 +1,123 @@
+/* ═══════════════════════════════════════════════════════════════
+   Theme: Dark
+   Visual: Zinc-based dark palette matching the minimalist hue.
+   Semantic scales (-50/-100) flip to dark tints so badges,
+   alerts and soft backgrounds stay comfortable on dark surfaces.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root[data-theme="dark"] {
+  /* ── Colors: Text ─────────────────────────────────────────── */
+  --color-text: #fafafa;
+  --color-text-muted: #a1a1aa;
+
+  /* ── Colors: Surface ──────────────────────────────────────── */
+  --color-surface: #18181b;
+  --color-surface-muted: #1f1f23;
+  --color-surface-subtle: #27272a;
+
+  /* ── Colors: Border ───────────────────────────────────────── */
+  --color-border: #3f3f46;
+  --color-border-strong: #52525b;
+  --color-brand-subtle: #27272a;
+  --color-brand-border: #52525b;
+
+  /* ── Colors: Primary (inverted: light action on dark) ─────── */
+  --color-primary: #fafafa;
+  --color-primary-foreground: #18181b;
+
+  /* ── Colors: Brand scale (inverted) ───────────────────────── */
+  --color-brand-50: #27272a;
+  --color-brand-100: #27272a;
+  --color-brand-200: #3f3f46;
+  --color-brand-300: #52525b;
+  --color-brand-400: #71717a;
+  --color-brand-600: #d4d4d8;
+  --color-brand-700: #e4e4e7;
+  --color-brand-800: #f4f4f5;
+  --color-brand-900: #fafafa;
+  --color-brand: #fafafa;
+
+  /* ── Colors: Background / Misc ────────────────────────────── */
+  --color-background: #101012;
+  --color-foreground: #fafafa;
+  --color-muted: #27272a;
+  --color-muted-foreground: #a1a1aa;
+  --color-popover: #27272a;
+
+  /* ── Colors: Sidebar ──────────────────────────────────────── */
+  --color-sidebar: #1f1f23;
+  --color-sidebar-accent: #27272a;
+  --color-sidebar-border: #3f3f46;
+  --color-sidebar-primary: #fafafa;
+  --color-sidebar-ring: #52525b;
+
+  /* ── Colors: Chart ────────────────────────────────────────── */
+  --color-chart-1: #e4e4e7;
+  --color-chart-2: #a1a1aa;
+  --color-chart-3: #52525b;
+  --color-chart-4: #3f3f46;
+  --color-chart-5: #27272a;
+
+  /* ── Success: dark-tinted soft bgs, brighter foregrounds ──── */
+  --color-success-50: #0c2416;
+  --color-success-100: #10301e;
+  --color-success-200: #14532d;
+  --color-success-300: #166534;
+  --color-success-600: #4ade80;
+  --color-success-700: #86efac;
+
+  /* ── Warning: dark-tinted soft bgs, brighter foregrounds ──── */
+  --color-warning-50: #2a1a05;
+  --color-warning-100: #33200a;
+  --color-warning-200: #452c0d;
+  --color-warning-300: #78350f;
+  --color-warning-600: #fbbf24;
+  --color-warning-700: #fcd34d;
+
+  /* ── Info: dark-tinted soft bgs, brighter foregrounds ─────── */
+  --color-info-50: #141a33;
+  --color-info-100: #1a2242;
+  --color-info-200: #24305e;
+  --color-info-300: #3543ae;
+  --color-info-400: #7d92fa;
+  --color-info-600: #93a6ff;
+  --color-info-700: #b9c6ff;
+
+  /* ── Danger: dark-tinted soft bgs, brighter foregrounds ───── */
+  --color-danger-50: #2a1214;
+  --color-danger-100: #331719;
+  --color-danger-200: #58151c;
+  --color-danger-400: #f87171;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #f87171;
+  --color-danger-700: #fca5a5;
+
+  /* ── Icon ─────────────────────────────────────────────────── */
+  --color-icon-50: #27272a;
+  --color-icon-100: #3f3f46;
+  --color-icon-200: #52525b;
+  --color-icon-300: #71717a;
+  --color-icon-400: #a1a1aa;
+  --color-icon-500: #d4d4d8;
+  --color-icon-600: #e4e4e7;
+  --color-icon-700: #f4f4f5;
+  --color-icon-800: #fafafa;
+  --color-icon-900: #ffffff;
+
+  /* ── Destructive ──────────────────────────────────────────── */
+  --color-destructive-subtle: #2a1416;
+  --color-destructive-foreground: #fafafa;
+
+  /* ── Shadows: deepen for dark surfaces ────────────────────── */
+  --shadow-2xs: 0px 1px 0px 0px rgba(0, 0, 0, 0.20);
+  --shadow-xs: 0px 1px 1px 0px rgba(0, 0, 0, 0.20);
+  --shadow-sm: 0px 1px 2px 0px rgba(0, 0, 0, 0.30), 0px 1px 1px 0px rgba(0, 0, 0, 0.20);
+  --shadow: 0px 2px 4px 0px rgba(0, 0, 0, 0.35), 0px 1px 2px 0px rgba(0, 0, 0, 0.20);
+  --shadow-md: 0px 4px 8px -2px rgba(0, 0, 0, 0.40), 0px 2px 4px -1px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0px 12px 20px -6px rgba(0, 0, 0, 0.45), 0px 4px 8px -2px rgba(0, 0, 0, 0.25);
+  --shadow-xl: 0px 24px 40px -10px rgba(0, 0, 0, 0.55), 0px 8px 16px -4px rgba(0, 0, 0, 0.30);
+  --shadow-2xl: 0px 32px 56px -14px rgba(0, 0, 0, 0.65);
+
+  /* ── Component: Input ─────────────────────────────────────── */
+  --input-focus-shadow: 0 0 0 1px var(--color-primary);
+}

@@ -208,7 +208,7 @@ onMounted(async () => {
 }
 .back-btn {
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--color-surface);
   cursor: pointer;
   font-size: 14px;
   color: var(--color-info-500);
@@ -301,7 +301,7 @@ onMounted(async () => {
   align-items: center;
   gap: 14px;
   padding: 14px 18px;
-  background: #fff;
+  background: var(--color-surface);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   cursor: pointer;

@@ -503,14 +503,14 @@ onUnmounted(() => {
 .progress {
   font-size: 13px;
   color: var(--color-text-muted);
-  background: #fff;
+  background: var(--color-surface);
   padding: 4px 12px;
   border-radius: 14px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 
 .audio-box {
-  background: #fff;
+  background: var(--color-surface);
   border-radius: 12px;
   padding: 16px;
   margin: 16px 20px 14px;
@@ -538,7 +538,7 @@ onUnmounted(() => {
 
 /* 文章卡片 */
 .passage-article {
-  background: #fff;
+  background: var(--color-surface);
   margin: 0 20px;
   padding: 32px 36px;
   border-radius: 14px;
@@ -589,7 +589,7 @@ onUnmounted(() => {
   padding-top: 8px;
 }
 .question-card {
-  background: #fff;
+  background: var(--color-surface);
   border-radius: 12px;
   padding: 18px 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -642,7 +642,7 @@ onUnmounted(() => {
   box-sizing: border-box;
   transition: border-color 0.2s;
 }
-.completion-input:focus { border-color: var(--color-info-500); background: #fff; }
+.completion-input:focus { border-color: var(--color-info-500); background: var(--color-surface); }
 .completion-input:disabled { background: var(--color-surface-subtle); color: var(--color-text-600); }
 
 /* 口语/写作 textarea */
@@ -663,7 +663,7 @@ onUnmounted(() => {
   resize: vertical;
   font-family: var(--font-sans);
 }
-.writing-input:focus { border-color: var(--color-info-500); background: #fff; }
+.writing-input:focus { border-color: var(--color-info-500); background: var(--color-surface); }
 .writing-input:disabled { background: var(--color-surface-subtle); color: var(--color-text-600); }
 
 /* 参考答案区 */
@@ -713,7 +713,7 @@ onUnmounted(() => {
   font-size: 12px;
   font-weight: 600;
   flex-shrink: 0;
-  background: #fff;
+  background: var(--color-surface);
   transition: all 0.15s;
 }
 .option-btn.selected .opt-letter { background: var(--color-info-500); color: #fff; border-color: var(--color-info-500); }
@@ -757,7 +757,7 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   padding: 14px 20px;
-  background: #fff;
+  background: var(--color-surface);
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.06);
   display: flex;
   justify-content: center;
