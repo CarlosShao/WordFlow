@@ -16,19 +16,13 @@
       <slot name="footer" />
     </div>
 
-    <!-- Resize handle -->
-    <div
-      class="sidebar-resize-handle"
-      @mousedown.prevent="startResize"
-    />
-
     <!-- Collapse toggle -->
     <button
       class="sidebar-toggle"
       :title="collapsed ? '展开侧边栏' : '收起侧边栏'"
       @click="$emit('update:collapsed', !collapsed)"
     >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline :points="collapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'" />
       </svg>
     </button>
@@ -147,31 +141,24 @@ if (saved) {
 /* ── Collapse toggle ────────────────────────────────────────── */
 
 .sidebar-toggle {
-  position: absolute;
-  bottom: var(--space-3);
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
+  width: 100%;
+  padding: var(--space-2) 0;
+  margin-top: var(--space-2);
   border: 1px solid var(--color-sidebar-border);
-  background: var(--color-surface);
+  background: var(--color-surface-subtle);
   color: var(--color-text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
+  border-radius: var(--radius-sm);
 }
 
 .sidebar-toggle:hover {
   background: var(--color-surface-muted);
   color: var(--color-text);
   border-color: var(--color-border-strong);
-}
-
-.compact .sidebar-toggle {
-  bottom: var(--space-2);
 }
 
 /* ── Brand ──────────────────────────────────────────────────── */
