@@ -1,4 +1,5 @@
 export { default as BaseButton } from './BaseButton.vue'
+export { default as TranscriptPanel } from './TranscriptPanel.vue'
 export { default as BaseCard } from './BaseCard.vue'
 export { default as BaseTable } from './BaseTable.vue'
 export { default as BaseSidebar } from './BaseSidebar.vue'

@@ -190,124 +190,26 @@
           </button>
         </div>
         <!-- Full bilingual transcript synced with video playback -->
-        <div v-if="hasTranscriptSegments" class="transcript-panel">
-          <div class="transcript-header">
-            <div class="tab-bar">
-              <button
-                :class="['tab-btn', { active: activeContentTab === 'transcript' || !hasArticleContent }]"
-                @click="activeContentTab = 'transcript'"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="4" width="20" height="16" rx="2" />
-                  <path d="M6 8h4M6 12h8M6 16h12" />
-                </svg>
-                字幕
-                <span v-if="activeSegmentIndex >= 0" class="tab-progress">
-                  {{ activeSegmentIndex + 1 }} / {{ transcriptSegments.length }}
-                </span>
-              </button>
-              <button
-                v-if="hasArticleContent"
-                :class="['tab-btn', { active: activeContentTab === 'article' }]"
-                @click="activeContentTab = 'article'"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M4 6h16M4 12h16M4 18h12" />
-                </svg>
-                双语全文
-              </button>
-            </div>
-            <div class="transcript-header-controls">
-              <button 
-                class="transcript-settings-btn" 
-                @click="showTranscriptSettings = !showTranscriptSettings"
-                :title="'字幕设置'"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="3"/>
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          
-          <!-- Transcript Settings Panel -->
-          <div v-if="showTranscriptSettings" class="transcript-settings-panel">
-            <div class="setting-row">
-              <label>字体大小</label>
-              <input 
-                type="range" 
-                v-model.number="transcriptSettings.fontSize" 
-                min="12" 
-                max="24" 
-                step="1"
-              />
-              <span class="setting-value">{{ transcriptSettings.fontSize }}px</span>
-            </div>
-            <div class="setting-row">
-              <label>背景透明度</label>
-              <input 
-                type="range" 
-                v-model.number="transcriptSettings.bgOpacity" 
-                min="0" 
-                max="0.3" 
-                step="0.02"
-              />
-              <span class="setting-value">{{ Math.round(transcriptSettings.bgOpacity * 100) }}%</span>
-            </div>
-            <div class="setting-row">
-              <label>显示时间戳</label>
-              <input type="checkbox" v-model="transcriptSettings.showTimestamps" />
-            </div>
-            <div class="setting-row">
-              <label>自动滚动</label>
-              <input type="checkbox" v-model="transcriptSettings.autoScroll" />
-            </div>
-          </div>
-          
-          <div v-show="activeContentTab === 'transcript' || !hasArticleContent" class="transcript-body" ref="transcriptBodyRef" :style="{ fontSize: transcriptSettings.fontSize + 'px' }" @mouseup="onTranscriptMouseUp">
-            <div v-if="transcriptSegments.length === 0 && !loading" class="transcript-empty">
-              <template v-if="segmentsLoading">
-                <div class="spinner spinner-sm"></div>
-                <span>视频字幕较多，正在加载字幕数据…</span>
-              </template>
-              <template v-else>字幕加载中…</template>
-            </div>
-            <div
-              v-for="(seg, idx) in transcriptSegments"
-              :key="idx"
-              :class="['transcript-block', { active: idx === activeSegmentIndex, clickable: canSeek }]"
-              @click="seekToSegment(seg, idx)"
-            >
-              <div v-if="(seg.start !== undefined || seg.end !== undefined) && transcriptSettings.showTimestamps" class="transcript-block-header">
-                <span v-if="seg.start !== undefined" class="transcript-time">{{ formatTime(seg.start) }}</span>
-                <span v-if="seg.end !== undefined && seg.start !== undefined" class="transcript-time duration-hint">
-                  {{ formatTime(seg.end - seg.start) }}
-                </span>
-              </div>
-              <div class="transcript-en">{{ seg.en }}</div>
-              <div :class="['transcript-zh', { 'no-translate': !seg.zh }]" :style="{ backgroundColor: `rgba(143, 155, 179, ${transcriptSettings.bgOpacity})` }">
-                {{ seg.zh || '（暂无对应翻译）' }}
-              </div>
-            </div>
-          </div>
-
-          <!-- Article tab body (placed in the same panel so toggling the
-               tab switches content without re-scrolling). Renders aligned
-               en/zh sentence pairs via the shared BilingualArticlePanel. -->
-          <div v-show="activeContentTab === 'article' && hasArticleContent" class="article-panel">
-            <div class="article-body">
-              <BilingualArticlePanel
-                :paragraphs="bilingualParagraphs"
-                :active-para-idx="activeParaIdx"
-                :active-sentence-idx="activeSentenceIdx"
-                @sentence-enter="onSentenceEnter"
-                @sentence-leave="onSentenceLeave"
-                @add-vocabulary="handleAddVocabulary"
-              />
-            </div>
-          </div>
-        </div>
+        <TranscriptPanel
+          v-if="hasTranscriptSegments"
+          :active-content-tab="activeContentTab"
+          :has-article-content="hasArticleContent"
+          :transcript-segments="transcriptSegments"
+          :segments-loading="segmentsLoading"
+          :parent-loading="loading"
+          :show-transcript-settings="showTranscriptSettings"
+          :transcript-settings="transcriptSettings"
+          :active-segment-index="activeSegmentIndex"
+          :can-seek="canSeek"
+          :bilingual-paragraphs="bilingualParagraphs"
+          @update:active-content-tab="activeContentTab = $event"
+          @update:show-transcript-settings="showTranscriptSettings = $event"
+          @seek="seekToSegment($event.seg, $event.idx)"
+          @sentence-enter="onSentenceEnter(...arguments)"
+          @sentence-leave="onSentenceLeave()"
+          @add-vocabulary="handleAddVocabulary($event)"
+          @select-text="onTranscriptMouseUp"
+        />
       </section>
 
       <!-- Audio Player (for PODCAST type) — the section renders even without
@@ -330,125 +232,27 @@
           <span>该播客暂无可用的音频，仅显示文字内容</span>
         </div>
         <!-- Full bilingual transcript synced with audio playback -->
-        <div v-if="hasTranscriptSegments" class="transcript-panel">
-          <div class="transcript-header">
-            <div class="tab-bar">
-              <button
-                :class="['tab-btn', { active: activeContentTab === 'transcript' || !hasArticleContent }]"
-                @click="activeContentTab = 'transcript'"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="4" width="20" height="16" rx="2" />
-                  <path d="M6 8h4M6 12h8M6 16h12" />
-                </svg>
-                字幕
-                <span v-if="activeSegmentIndex >= 0" class="tab-progress">
-                  {{ activeSegmentIndex + 1 }} / {{ transcriptSegments.length }}
-                </span>
-              </button>
-              <button
-                v-if="hasArticleContent"
-                :class="['tab-btn', { active: activeContentTab === 'article' }]"
-                @click="activeContentTab = 'article'"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M4 6h16M4 12h16M4 18h12" />
-                </svg>
-                双语全文
-              </button>
-            </div>
-            <div class="transcript-header-controls">
-              <button 
-                class="transcript-settings-btn" 
-                @click="showTranscriptSettings = !showTranscriptSettings"
-                :title="'字幕设置'"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="3"/>
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          
-          <!-- Transcript Settings Panel -->
-          <div v-if="showTranscriptSettings" class="transcript-settings-panel">
-            <div class="setting-row">
-              <label>字体大小</label>
-              <input 
-                type="range" 
-                v-model.number="transcriptSettings.fontSize" 
-                min="12" 
-                max="24" 
-                step="1"
-              />
-              <span class="setting-value">{{ transcriptSettings.fontSize }}px</span>
-            </div>
-            <div class="setting-row">
-              <label>背景透明度</label>
-              <input 
-                type="range" 
-                v-model.number="transcriptSettings.bgOpacity" 
-                min="0" 
-                max="0.3" 
-                step="0.02"
-              />
-              <span class="setting-value">{{ Math.round(transcriptSettings.bgOpacity * 100) }}%</span>
-            </div>
-            <div class="setting-row">
-              <label>显示时间戳</label>
-              <input type="checkbox" v-model="transcriptSettings.showTimestamps" />
-            </div>
-            <div class="setting-row">
-              <label>自动滚动</label>
-              <input type="checkbox" v-model="transcriptSettings.autoScroll" />
-            </div>
-          </div>
-          
-          <div v-show="activeContentTab === 'transcript' || !hasArticleContent" class="transcript-body" ref="transcriptBodyRef" :style="{ fontSize: transcriptSettings.fontSize + 'px' }" @mouseup="onTranscriptMouseUp">
-            <div v-if="transcriptSegments.length === 0 && !loading" class="transcript-empty">
-              <template v-if="segmentsLoading">
-                <div class="spinner spinner-sm"></div>
-                <span>视频字幕较多，正在加载字幕数据…</span>
-              </template>
-              <template v-else>字幕加载中…</template>
-            </div>
-            <div
-              v-for="(seg, idx) in transcriptSegments"
-              :key="idx"
-              :class="['transcript-block', { active: idx === activeSegmentIndex, clickable: canSeek }]"
-              @click="seekToSegment(seg, idx)"
-            >
-              <div v-if="(seg.start !== undefined || seg.end !== undefined) && transcriptSettings.showTimestamps" class="transcript-block-header">
-                <span v-if="seg.start !== undefined" class="transcript-time">{{ formatTime(seg.start) }}</span>
-                <span v-if="seg.end !== undefined && seg.start !== undefined" class="transcript-time duration-hint">
-                  {{ formatTime(seg.end - seg.start) }}
-                </span>
-              </div>
-              <div class="transcript-en">{{ seg.en }}</div>
-              <div :class="['transcript-zh', { 'no-translate': !seg.zh }]" :style="{ backgroundColor: `rgba(143, 155, 179, ${transcriptSettings.bgOpacity})` }">
-                {{ seg.zh || '（暂无对应翻译）' }}
-              </div>
-            </div>
-          </div>
+        <TranscriptPanel
+          v-if="hasTranscriptSegments"
+          :active-content-tab="activeContentTab"
+          :has-article-content="hasArticleContent"
+          :transcript-segments="transcriptSegments"
+          :segments-loading="segmentsLoading"
+          :parent-loading="loading"
+          :show-transcript-settings="showTranscriptSettings"
+          :transcript-settings="transcriptSettings"
+          :active-segment-index="activeSegmentIndex"
+          :can-seek="canSeek"
+          :bilingual-paragraphs="bilingualParagraphs"
+          @update:active-content-tab="activeContentTab = $event"
+          @update:show-transcript-settings="showTranscriptSettings = $event"
+          @seek="seekToSegment($event.seg, $event.idx)"
+          @sentence-enter="onSentenceEnter(...arguments)"
+          @sentence-leave="onSentenceLeave()"
+          @add-vocabulary="handleAddVocabulary($event)"
+          @select-text="onTranscriptMouseUp"
+        />
 
-          <!-- Article tab body (same bilingual reading panel as the video
-               section above — the podcast tab bar's 双语全文 button previously
-               had no matching body here, so clicking it showed nothing). -->
-          <div v-show="activeContentTab === 'article' && hasArticleContent" class="article-panel">
-            <div class="article-body">
-              <BilingualArticlePanel
-                :paragraphs="bilingualParagraphs"
-                :active-para-idx="activeParaIdx"
-                :active-sentence-idx="activeSentenceIdx"
-                @sentence-enter="onSentenceEnter"
-                @sentence-leave="onSentenceLeave"
-                @add-vocabulary="handleAddVocabulary"
-              />
-            </div>
-          </div>
-
-        </div>
         <p v-if="!hasTranscriptSegments" class="audio-hint">以下是播客的文字记录（Show Notes），可能与音频内容不完全对应</p>
       </section>
 
@@ -500,7 +304,7 @@
 <script setup lang="ts">
 import { ref, shallowRef, reactive, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Skeleton, AIQuestionGenerator } from '../components'
+import { Skeleton, AIQuestionGenerator, TranscriptPanel } from '../components'
 import { contentApi } from '../api/content'
 import { mediaApi } from '../api/media'
 import { vocabularyApi } from '../api/vocabulary'
