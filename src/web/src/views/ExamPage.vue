@@ -538,7 +538,7 @@ function bookTilt(book: ExamBook): Record<string, string> {
 .source-btn.active {
   background: var(--color-surface);
   border-color: var(--color-brand-500);
-  color: var(--color-brand-600, #4f46e5);
+  color: var(--color-brand-600, var(--color-info-600));
   box-shadow: 0 1px 4px rgba(79, 70, 229, 0.1);
 }
 .source-dot {
@@ -547,8 +547,8 @@ function bookTilt(book: ExamBook): Record<string, string> {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.source-dot.dot-LEGACY { background: #9ca3af; }
-.source-dot.dot-CURATED { background: #3b82f6; }
+.source-dot.dot-LEGACY { background: var(--color-text-300); }
+.source-dot.dot-CURATED { background: var(--color-info-500); }
 .source-count {
   font-size: 0.6875rem;
   font-weight: 500;
@@ -672,22 +672,22 @@ function bookTilt(book: ExamBook): Record<string, string> {
   color: #fff;
 }
 .curated-card-header.theme-reading {
-  background: linear-gradient(135deg, #064e3b 0%, #10b981 100%);
+  background: linear-gradient(135deg, var(--color-success-900) 0%, var(--color-success-500) 100%);
 }
 .curated-card-header.theme-listening {
-  background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--color-info-800) 0%, var(--color-info-500) 100%);
 }
 .curated-card-header.theme-speaking {
-  background: linear-gradient(135deg, #7c2d12 0%, #ea580c 100%);
+  background: linear-gradient(135deg, var(--color-warning-900) 0%, var(--color-warning-600) 100%);
 }
 .curated-card-header.theme-writing {
   background: linear-gradient(135deg, #4c1d95 0%, #8b5cf6 100%);
 }
 .curated-card-header.theme-default {
-  background: linear-gradient(135deg, #1e40af 0%, #6366f1 100%);
+  background: linear-gradient(135deg, var(--color-info-700) 0%, var(--color-info-500) 100%);
 }
 .curated-card-header.mock-header {
-  background: linear-gradient(135deg, #3f3f46 0%, #71717a 100%);
+  background: linear-gradient(135deg, var(--color-brand-700) 0%, var(--color-text-muted) 100%);
 }
 .curated-badge {
   font-size: 0.7rem;
@@ -735,7 +735,7 @@ function bookTilt(book: ExamBook): Record<string, string> {
 .stat-num {
   font-size: 1.5rem;
   font-weight: 800;
-  color: var(--color-brand-600, #4f46e5);
+  color: var(--color-brand-600, var(--color-info-600));
   font-family: 'Georgia', serif;
 }
 .stat-label {
@@ -750,7 +750,7 @@ function bookTilt(book: ExamBook): Record<string, string> {
 
 .curated-card.skeleton {
   height: 200px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e6e6e6 37%, #f0f0f0 63%);
+  background: linear-gradient(90deg, var(--color-surface-subtle) 25%, var(--color-border) 37%, var(--color-surface-subtle) 63%);
   background-size: 400% 100%;
   animation: shimmer 1.4s ease infinite;
   border-radius: 14px;
@@ -771,7 +771,7 @@ function bookTilt(book: ExamBook): Record<string, string> {
 .shelf-section-title {
   font-size: 15px;
   font-weight: 700;
-  color: #555;
+  color: var(--color-text-600);
   padding: 0 18px 4px;
   letter-spacing: 1px;
   display: flex;
@@ -782,7 +782,7 @@ function bookTilt(book: ExamBook): Record<string, string> {
   content: '';
   flex: 1;
   height: 1px;
-  background: #ddd;
+  background: var(--color-border-strong);
 }
 .shelf { position: relative; }
 .shelf-books {
@@ -1069,7 +1069,7 @@ function bookTilt(book: ExamBook): Record<string, string> {
 }
 
 .book-card.skeleton {
-  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+  background: linear-gradient(135deg, var(--color-border) 0%, var(--color-border-strong) 100%);
   border-radius: 2px 3px 3px 2px;
   position: relative;
   overflow: hidden;

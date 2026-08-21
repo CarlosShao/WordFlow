@@ -347,7 +347,7 @@ function parseEtymology(etymology: string): { text: string; type: 'prefix' | 'ro
 }
 
 .mastery-high { background: var(--color-success-600); }
-.mastery-medium { background: #d97706; }
+.mastery-medium { background: var(--color-warning-600); }
 .mastery-low { background: var(--color-danger-600); }
 
 /* Flashcard Section */
@@ -455,8 +455,8 @@ function parseEtymology(etymology: string): { text: string; type: 'prefix' | 'ro
 }
 
 .mastery-circle.mastery-medium {
-  background: #fef3c7;
-  color: #d97706;
+  background: var(--color-warning-100);
+  color: var(--color-warning-600);
 }
 
 .mastery-circle.mastery-low {

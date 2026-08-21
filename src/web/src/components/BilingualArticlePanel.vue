@@ -81,7 +81,7 @@ const emit = defineEmits<{
    several sentences, followed by its translated paragraph below it. */
 .bilingual-block {
   padding: var(--space-5, 20px) var(--space-4, 16px);
-  border-bottom: 1px solid var(--color-border, #e5e7eb);
+  border-bottom: 1px solid var(--color-border, var(--color-border));
   border-radius: var(--radius-md, 8px);
   transition: background-color 0.2s ease;
 }
@@ -117,7 +117,7 @@ const emit = defineEmits<{
 .sentence.sentence-active,
 .sentence:hover {
   transform: translateY(-2px);
-  color: var(--color-primary, #4f46e5);
+  color: var(--color-primary, var(--color-info-600));
   background: rgba(79, 70, 229, 0.08); /* primary-indigo translucent wash */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
@@ -138,17 +138,17 @@ const emit = defineEmits<{
 
 /* Subtle left-border emphasis on the paragraph owning the active sentence. */
 .bilingual-block:has(.bi-zh .zh-sentence.zh-sentence-active) {
-  border-left: 2px solid var(--color-primary, #4f46e5);
+  border-left: 2px solid var(--color-primary, var(--color-info-600));
   margin-left: -2px;
 }
 
 .bi-zh {
   font-size: 0.9375rem;
   line-height: 1.8;
-  color: var(--color-text-muted, #6b7280);
+  color: var(--color-text-muted, var(--color-text-muted));
   padding: var(--space-2, 8px) var(--space-3, 12px);
   text-indent: 2em;          /* Chinese paragraph first-line indent */
-  border-left: 2px solid var(--color-border, #e5e7eb);
+  border-left: 2px solid var(--color-border, var(--color-border));
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
@@ -157,15 +157,15 @@ const emit = defineEmits<{
   align-items: flex-start;
   gap: var(--space-3, 12px);
   padding: var(--space-4, 16px) var(--space-5, 20px);
-  background: var(--color-surface-muted, #f3f4f6);
+  background: var(--color-surface-muted, var(--color-surface-subtle));
   border-radius: var(--radius-md, 8px);
-  color: var(--color-text-muted, #6b7280);
+  color: var(--color-text-muted, var(--color-text-muted));
   font-size: 0.9375rem;
   line-height: 1.6;
 }
 
 .translation-hint svg {
   flex-shrink: 0;
-  color: var(--color-text-muted, #6b7280);
+  color: var(--color-text-muted, var(--color-text-muted));
 }
 </style>

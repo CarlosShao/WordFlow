@@ -307,8 +307,8 @@ function startReading() {
 
 .difficulty-A1 { background: var(--color-success-50); color: var(--color-success-700); }
 .difficulty-A2 { background: var(--color-success-50); color: var(--color-success-600); }
-.difficulty-B1 { background: #fef3c7; color: #d97706; }
-.difficulty-B2 { background: #fef3c7; color: #b45309; }
+.difficulty-B1 { background: var(--color-warning-100); color: var(--color-warning-600); }
+.difficulty-B2 { background: var(--color-warning-100); color: var(--color-warning-700); }
 .difficulty-C1 { background: var(--color-danger-50); color: var(--color-danger-600); }
 .difficulty-C2 { background: var(--color-danger-50); color: var(--color-danger-700); }
 

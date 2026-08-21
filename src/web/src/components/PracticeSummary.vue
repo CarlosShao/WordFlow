@@ -81,7 +81,7 @@ const scorePct = computed(() => {
 
 const scoreColor = computed(() => {
   if (scorePct.value >= 80) return 'var(--color-success-600)'
-  if (scorePct.value >= 50) return '#eab308'
+  if (scorePct.value >= 50) return 'var(--color-warning-500)'
   return 'var(--color-danger-600)'
 })
 

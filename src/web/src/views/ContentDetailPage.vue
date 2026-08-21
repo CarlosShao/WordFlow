@@ -1685,19 +1685,19 @@ function syncArticleHighlight(time: number): void {
   border: 1px solid transparent;
 }
 .badge-article {
-  background: var(--color-brand-50, #f4f4f5);
-  color: var(--color-brand-700, #3f3f46);
-  border-color: var(--color-brand-200, #e4e4e7);
+  background: var(--color-brand-50, var(--color-surface-subtle));
+  color: var(--color-brand-700, var(--color-brand-700));
+  border-color: var(--color-brand-200, var(--color-border));
 }
 .badge-video {
-  background: var(--color-danger-50, #fef2f2);
-  color: var(--color-danger-600, #dc2626);
-  border-color: var(--color-danger-200, #fecaca);
+  background: var(--color-danger-50, var(--color-danger-50));
+  color: var(--color-danger-600, var(--color-danger-600));
+  border-color: var(--color-danger-200, var(--color-danger-200));
 }
 .badge-podcast {
-  background: var(--color-success-50, #f0fdf4);
-  color: var(--color-success-600, #16a34a);
-  border-color: var(--color-success-200, #bbf7d0);
+  background: var(--color-success-50, var(--color-success-50));
+  color: var(--color-success-600, var(--color-success-600));
+  border-color: var(--color-success-200, var(--color-success-200));
 }
 
 .difficulty-badge {
@@ -1710,19 +1710,19 @@ function syncArticleHighlight(time: number): void {
   border: 1px solid transparent;
 }
 .diff-A1, .diff-A2 {
-  background: var(--color-success-50, #f0fdf4);
-  color: var(--color-success-700, #15803d);
-  border-color: var(--color-success-200, #bbf7d0);
+  background: var(--color-success-50, var(--color-success-50));
+  color: var(--color-success-700, var(--color-success-700));
+  border-color: var(--color-success-200, var(--color-success-200));
 }
 .diff-B1, .diff-B2 {
-  background: var(--color-brand-50, #f4f4f5);
-  color: var(--color-brand-700, #3f3f46);
-  border-color: var(--color-brand-200, #e4e4e7);
+  background: var(--color-brand-50, var(--color-surface-subtle));
+  color: var(--color-brand-700, var(--color-brand-700));
+  border-color: var(--color-brand-200, var(--color-border));
 }
 .diff-C1, .diff-C2 {
-  background: var(--color-danger-50, #fef2f2);
-  color: var(--color-danger-600, #dc2626);
-  border-color: var(--color-danger-200, #fecaca);
+  background: var(--color-danger-50, var(--color-danger-50));
+  color: var(--color-danger-600, var(--color-danger-600));
+  border-color: var(--color-danger-200, var(--color-danger-200));
 }
 
 .source-badge {
@@ -1900,23 +1900,23 @@ function syncArticleHighlight(time: number): void {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: #111;
-  color: #aaa;
+  background: var(--color-text);
+  color: var(--color-text-300);
   font-size: 0.9rem;
 }
 
 .video-loading .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #333;
-  border-top-color: var(--color-primary, #4f46e5);
+  border: 3px solid var(--color-text-700);
+  border-top-color: var(--color-primary, var(--color-info-600));
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
 .loading-sub {
   font-size: 0.75rem;
-  color: #888;
+  color: var(--color-text-muted);
   max-width: 80%;
   text-align: center;
   line-height: 1.4;
@@ -1944,8 +1944,8 @@ function syncArticleHighlight(time: number): void {
 .detail-loading .spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid #e5e7eb;
-  border-top-color: var(--color-primary, #4f46e5);
+  border: 4px solid var(--color-border);
+  border-top-color: var(--color-primary, var(--color-info-600));
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -1954,13 +1954,13 @@ function syncArticleHighlight(time: number): void {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--color-text, #1f2937);
+  color: var(--color-text, var(--color-text));
 }
 
 .detail-loading-sub {
   margin: 0;
   font-size: 0.8rem;
-  color: #9ca3af;
+  color: var(--color-text-300);
 }
 
 /* Transcript empty / loading placeholder */
@@ -1971,7 +1971,7 @@ function syncArticleHighlight(time: number): void {
   justify-content: center;
   gap: 10px;
   padding: 40px 16px;
-  color: #9ca3af;
+  color: var(--color-text-300);
   font-size: 0.875rem;
   text-align: center;
 }
@@ -1987,12 +1987,12 @@ function syncArticleHighlight(time: number): void {
 
 .video-error p {
   margin: 0;
-  color: #f87171;
+  color: var(--color-danger-400);
 }
 
 .video-error button {
   padding: 8px 20px;
-  background: var(--color-primary, #4f46e5);
+  background: var(--color-primary, var(--color-info-600));
   color: white;
   border: none;
   border-radius: var(--radius-sm);
@@ -2005,7 +2005,7 @@ function syncArticleHighlight(time: number): void {
 }
 
 .fallback-link {
-  color: #60a5fa;
+  color: var(--color-info-400);
   text-decoration: none;
   font-size: 0.85rem;
 }

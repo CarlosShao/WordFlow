@@ -72,9 +72,9 @@ const dashOffset = computed(() => circumference * (1 - progress.value))
 const trackColor = computed(() => 'var(--color-border)')
 
 const ringColor = computed(() => {
-  if (progress.value > 0.5) return '#22c55e'
-  if (progress.value > 0.25) return '#eab308'
-  return '#ef4444'
+  if (progress.value > 0.5) return 'var(--color-success-500)'
+  if (progress.value > 0.25) return 'var(--color-warning-500)'
+  return 'var(--color-danger-500)'
 })
 
 const isPulsing = computed(() => remaining.value <= 10 && remaining.value > 0)

@@ -169,9 +169,9 @@ function handleClear() {
 }
 
 .status-banner--active {
-  background: var(--color-success-50, #f0fdf4);
-  color: var(--color-success-700, #15803d);
-  border: 1px solid var(--color-success-200, #bbf7d0);
+  background: var(--color-success-50, var(--color-success-50));
+  color: var(--color-success-700, var(--color-success-700));
+  border: 1px solid var(--color-success-200, var(--color-success-200));
 }
 
 .status-banner--default {
@@ -249,15 +249,15 @@ function handleClear() {
 }
 
 .test-result--success {
-  background: var(--color-success-50, #f0fdf4);
-  color: var(--color-success-700, #15803d);
-  border: 1px solid var(--color-success-200, #bbf7d0);
+  background: var(--color-success-50, var(--color-success-50));
+  color: var(--color-success-700, var(--color-success-700));
+  border: 1px solid var(--color-success-200, var(--color-success-200));
 }
 
 .test-result--error {
-  background: var(--color-danger-50, #fef2f2);
-  color: var(--color-danger-700, #b91c1c);
-  border: 1px solid var(--color-danger-200, #fecaca);
+  background: var(--color-danger-50, var(--color-danger-50));
+  color: var(--color-danger-700, var(--color-danger-700));
+  border: 1px solid var(--color-danger-200, var(--color-danger-200));
 }
 
 .config-actions {
