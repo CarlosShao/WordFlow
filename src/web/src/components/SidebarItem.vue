@@ -1,14 +1,17 @@
 <template>
   <button
-    :class="['sidebar-item', { active, 'is-disabled': disabled, compact }]"
+    :class="['sidebar-item', { active, 'is-disabled': disabled }]"
     :disabled="disabled"
     @click="$emit('click', $event)"
   >
-    <span class="item-dot" />
-    <span v-if="!compact" class="item-label">
+    <span class="item-icon" v-if="$slots.icon">
+      <slot name="icon" />
+    </span>
+    <span class="item-dot" v-else />
+    <span class="item-label">
       <slot />
     </span>
-    <span v-if="badge && !compact" class="item-badge">
+    <span v-if="badge" class="item-badge">
       {{ badge }}
     </span>
   </button>
@@ -18,14 +21,12 @@
 interface Props {
   active?: boolean
   disabled?: boolean
-  compact?: boolean
   badge?: string | number
 }
 
 withDefaults(defineProps<Props>(), {
   active: false,
   disabled: false,
-  compact: false,
   badge: ''
 })
 
@@ -40,14 +41,14 @@ defineEmits<{
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  min-height: 34px;
+  min-height: 38px;
   padding: 0 var(--space-2);
   border: 0;
   border-radius: var(--sidebar-item-radius);
   background: transparent;
   color: var(--color-text-muted);
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -71,12 +72,26 @@ defineEmits<{
   cursor: not-allowed;
 }
 
+.item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.active .item-icon {
+  opacity: 1;
+}
+
 .item-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   background: currentColor;
-  opacity: 0.72;
+  opacity: 0.6;
   flex-shrink: 0;
 }
 
@@ -108,12 +123,5 @@ defineEmits<{
 .active .item-badge {
   background: var(--color-primary-foreground);
   color: var(--color-primary);
-}
-
-/* ── Compact mode ───────────────────────────────────────────── */
-
-.sidebar-item.compact {
-  justify-content: center;
-  padding: 0;
 }
 </style>
