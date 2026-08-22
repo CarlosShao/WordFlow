@@ -1,29 +1,19 @@
 <template>
   <aside
     class="sidebar"
-    :class="{ compact: collapsed, 'is-disabled': disabled }"
-    :style="{ width: currentWidth + 'px' }"
+    :class="{ collapsed, 'is-disabled': disabled, resizing }"
   >
-    <!-- Brand + collapse toggle -->
+    <!-- Brand -->
     <div class="sidebar-header">
       <div class="sidebar-brand">
         <slot name="brand">
           <span class="brand-text">{{ brand }}</span>
         </slot>
       </div>
-      <button
-        class="sidebar-toggle"
-        :title="collapsed ? '展开侧边栏' : '收起侧边栏'"
-        @click="$emit('update:collapsed', !collapsed)"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline :points="collapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'" />
-        </svg>
-      </button>
     </div>
 
     <nav class="sidebar-nav">
-      <slot :compact="collapsed" />
+      <slot :compact="false" />
     </nav>
 
     <div v-if="$slots.footer" class="sidebar-footer">
@@ -32,6 +22,7 @@
 
     <!-- Resize handle (right edge) -->
     <div
+      v-if="!collapsed"
       class="sidebar-resize-handle"
       @mousedown.prevent="startResize"
     />
@@ -55,7 +46,7 @@ const props = withDefaults(defineProps<Props>(), {
   collapsed: false,
   disabled: false,
   defaultWidth: 224,
-  minWidth: 100,
+  minWidth: 180,
   maxWidth: 400,
 })
 
@@ -64,30 +55,38 @@ defineEmits<{
 }>()
 
 // ── Resize state ───────────────────────────────────────────────
-
 const currentWidth = ref(props.defaultWidth)
-let resizing = false
+const resizing = ref(false)
 let startX = 0
 let startWidth = 0
 
+function applyWidth(w: number) {
+  currentWidth.value = w
+  document.documentElement.style.setProperty('--app-sidebar-width', `${w}px`)
+}
+
 function startResize(e: MouseEvent) {
-  resizing = true
+  resizing.value = true
   startX = e.clientX
   startWidth = currentWidth.value
+  document.body.style.userSelect = 'none'
+  document.body.style.cursor = 'col-resize'
   document.addEventListener('mousemove', onResize)
   document.addEventListener('mouseup', stopResize)
 }
 
 function onResize(e: MouseEvent) {
-  if (!resizing) return
+  if (!resizing.value) return
   const delta = e.clientX - startX
   const w = Math.min(props.maxWidth, Math.max(props.minWidth, startWidth + delta))
-  currentWidth.value = w
+  applyWidth(w)
 }
 
 function stopResize() {
-  if (resizing) {
-    resizing = false
+  if (resizing.value) {
+    resizing.value = false
+    document.body.style.userSelect = ''
+    document.body.style.cursor = ''
     document.removeEventListener('mousemove', onResize)
     document.removeEventListener('mouseup', stopResize)
     localStorage.setItem('sidebar-width', String(currentWidth.value))
@@ -99,25 +98,40 @@ const saved = localStorage.getItem('sidebar-width')
 if (saved) {
   const w = parseInt(saved, 10)
   if (w >= props.minWidth && w <= props.maxWidth) {
-    currentWidth.value = w
+    applyWidth(w)
+  } else {
+    applyWidth(props.defaultWidth)
   }
+} else {
+  applyWidth(props.defaultWidth)
 }
 </script>
 
 <style scoped>
 .sidebar {
-  width: var(--sidebar-width, 224px);
-  min-height: 100vh;
+  width: var(--app-sidebar-width, 224px);
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
   background: var(--color-sidebar);
   border-right: 1px solid var(--color-sidebar-border);
-  position: relative;
   flex-shrink: 0;
+  z-index: var(--z-sticky);
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
 }
 
-.sidebar.compact {
-  width: 72px;
+/* Disable transition during active resize for 1:1 pointer tracking */
+.sidebar.resizing {
+  transition: none !important;
+}
+
+.sidebar.collapsed {
+  width: 0 !important;
+  border-right-color: transparent;
 }
 
 .sidebar.is-disabled {
@@ -125,14 +139,15 @@ if (saved) {
   pointer-events: none;
 }
 
-/* ── Header (brand + collapse) ─────────────────────────────── */
+/* ── Header (brand) ──────────────────────────────────────────── */
 
 .sidebar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-3) var(--space-3) var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-3);
   gap: var(--space-2);
+  flex-shrink: 0;
 }
 
 .sidebar-brand {
@@ -152,39 +167,7 @@ if (saved) {
   white-space: nowrap;
 }
 
-.compact .brand-text {
-  font-size: 0;
-}
-
-.compact .brand-text::first-letter {
-  font-size: 0.9375rem;
-  font-weight: 700;
-}
-
-/* ── Collapse toggle ────────────────────────────────────────── */
-
-.sidebar-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-}
-
-.sidebar-toggle:hover {
-  background: var(--color-surface-muted);
-  border-color: var(--color-border);
-  color: var(--color-text);
-}
-
-/* ── Navigation ─────────────────────────────────────────────── */
+/* ── Navigation ──────────────────────────────────────────────── */
 
 .sidebar-nav {
   flex: 1;
@@ -193,25 +176,18 @@ if (saved) {
   gap: var(--space-1);
   padding: 0 var(--space-3);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.compact .sidebar-nav {
-  padding: 0 var(--space-2);
-  align-items: center;
-}
-
-/* ── Footer ─────────────────────────────────────────────────── */
+/* ── Footer ──────────────────────────────────────────────────── */
 
 .sidebar-footer {
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-4);
   border-top: 1px solid var(--color-sidebar-border);
+  flex-shrink: 0;
 }
 
-.compact .sidebar-footer {
-  padding: var(--space-2);
-}
-
-/* ── Resize handle ──────────────────────────────────────────── */
+/* ── Resize handle ───────────────────────────────────────────── */
 
 .sidebar-resize-handle {
   position: absolute;
@@ -229,5 +205,24 @@ if (saved) {
 .sidebar-resize-handle:active {
   background: var(--color-primary);
   opacity: 0.4;
+}
+
+/* ── Scrollbar styling ──────────────────────────────────────── */
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
 }
 </style>

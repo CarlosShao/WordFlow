@@ -1,5 +1,5 @@
 <template>
-  <div class="app-layout">
+  <div class="app-layout" :class="{ 'sidebar-open': isAuthenticated && !sidebarCollapsed }">
     <!-- Mobile hamburger -->
     <button class="mobile-menu-btn" @click="toggleMobileSidebar" title="菜单">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -20,9 +20,11 @@
         v-for="route in navRoutes"
         :key="route.path"
         :active="isNavActive(route)"
-        :compact="sidebarCollapsed"
         @click="navigateTo(route.path)"
       >
+        <template #icon>
+          <span class="nav-icon" v-html="getRouteIcon(route)" />
+        </template>
         {{ route.meta.title }}
       </SidebarItem>
 
@@ -39,6 +41,19 @@
         </div>
       </template>
     </BaseSidebar>
+
+    <!-- Collapse toggle button (OUTSIDE sidebar, always visible) -->
+    <button
+      v-if="isAuthenticated"
+      class="sidebar-toggle-btn"
+      :class="{ 'is-collapsed': sidebarCollapsed }"
+      :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+      @click="toggleSidebar"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline :points="sidebarCollapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'" />
+      </svg>
+    </button>
 
     <!-- Mobile sidebar overlay -->
     <Transition name="overlay">
@@ -90,18 +105,29 @@ const settingsDialogVisible = ref(false)
 
 // ── Sidebar state ──────────────────────────────────────────────
 const isMobile = ref(false)
-const sidebarCollapsed = ref(true)
+const sidebarCollapsed = ref(false)
+const sidebarWidth = ref(224)
 const mobileOpen = ref(false)
+
+// Restore saved sidebar width
+const SAVED_WIDTH = localStorage.getItem('sidebar-width')
+if (SAVED_WIDTH) {
+  const w = parseInt(SAVED_WIDTH, 10)
+  if (w >= 180 && w <= 400) sidebarWidth.value = w
+}
+
+// Apply sidebar width as CSS variable on root
+watch(sidebarWidth, (w) => {
+  document.documentElement.style.setProperty('--app-sidebar-width', `${w}px`)
+}, { immediate: true })
 
 function checkMobile() {
   const mobile = window.innerWidth < 768
   isMobile.value = mobile
-  // On mobile, start collapsed; on desktop, start expanded
   if (mobile) {
     sidebarCollapsed.value = true
     mobileOpen.value = false
   } else {
-    // Restore collapsed preference from localStorage on desktop
     const saved = localStorage.getItem('sidebar-collapsed')
     sidebarCollapsed.value = saved === 'true'
     mobileOpen.value = false
@@ -118,6 +144,10 @@ function toggleMobileSidebar() {
   }
 }
 
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
+
 onMounted(() => {
   initTheme()
   checkMobile()
@@ -127,11 +157,6 @@ onMounted(() => {
   const saved = localStorage.getItem('sidebar-collapsed')
   if (!isMobile.value && saved !== null) {
     sidebarCollapsed.value = saved === 'true'
-  }
-
-  // Restore from localStorage on desktop
-  if (!isMobile.value) {
-    sidebarCollapsed.value = localStorage.getItem('sidebar-collapsed') === 'true'
   }
 
   // 路由兼容：如果用户直接访问 /settings，自动打开弹窗并显示首页在背后
@@ -184,6 +209,31 @@ const navRoutes = computed(() =>
   )
 )
 
+// SVG icons for each route
+const ICON_MAP: Record<string, string> = {
+  // Dashboard / 首页
+  'house': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>',
+  // Materials / 素材库
+  'library': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  // Vocabulary / 词汇
+  'book-text': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  // Examples / 例句库
+  'quote': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21c0-4.97 3.582-9 8-9v9H3z"/><path d="M14 21c0-4.97 3.582-9 8-9v9h-8z" transform="rotate(180 18 16.5)"/></svg>',
+  // Exam / 真题
+  'graduation-cap': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1 2.5 3 6 3s6-2 6-3v-5"/></svg>',
+  // AI Practice / AI练习
+  'sparkles': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/><path d="M5 16l.75 2.25L8 19l-2.25.75L5 22l-.75-2.25L2 19l2.25-.75L5 16z"/></svg>',
+  // Mistakes / 错题本
+  'alert-circle': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+  // Settings / 设置
+  'settings': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+}
+
+function getRouteIcon(r: RouteRecordRaw): string {
+  const iconKey = (r.meta?.icon as string) || ''
+  return ICON_MAP[iconKey] || ICON_MAP['house']
+}
+
 // 判断导航项是否高亮：除了完全匹配，还要处理子路由（/exam/* 都高亮真题）
 function isNavActive(navRoute: RouteRecordRaw): boolean {
   const p = currentRoute.value
@@ -205,15 +255,59 @@ function navigateTo(path: string) {
 
 <style scoped>
 .app-layout {
-  display: flex;
   min-height: 100vh;
   background: var(--color-surface);
 }
 
+/* Main content offset for fixed sidebar */
 .main-content {
-  flex: 1;
-  min-width: 0;
-  overflow-y: auto;
+  padding-left: var(--app-sidebar-width, 224px);
+  transition: padding-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 100vh;
+}
+
+.app-layout:not(.sidebar-open) .main-content {
+  padding-left: 0;
+}
+
+/* ── Collapse toggle button (fixed, outside sidebar) ─────────── */
+
+.sidebar-toggle-btn {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  left: var(--app-sidebar-width, 224px);
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 44px;
+  border: 1px solid var(--color-border);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.06);
+}
+
+.sidebar-toggle-btn:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  box-shadow: 2px 0 8px -2px rgba(0, 0, 0, 0.12);
+}
+
+.sidebar-toggle-btn.is-collapsed {
+  left: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 0 6px 6px 0;
+  box-shadow: 2px 0 6px -2px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-toggle-btn.is-collapsed:hover {
+  background: var(--color-surface-muted);
 }
 
 /* Page Transition */
@@ -237,7 +331,7 @@ function navigateTo(path: string) {
 
 /* Sidebar Footer User */
 .sidebar-footer-user {
-  padding-top: var(--space-3);
+  padding-top: var(--space-2);
 }
 
 .sidebar-user {
@@ -254,7 +348,7 @@ function navigateTo(path: string) {
 }
 
 .sidebar-user:hover {
-  background: var(--color-sidebar-muted, rgba(0,0,0,0.04));
+  background: var(--color-sidebar-accent, rgba(0,0,0,0.04));
 }
 
 .sidebar-user-avatar {
@@ -285,6 +379,18 @@ function navigateTo(path: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Nav icon */
+.nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-icon :deep(svg) {
+  width: 18px;
+  height: 18px;
 }
 
 /* ── Mobile ─────────────────────────────────────────────────── */
@@ -322,17 +428,27 @@ function navigateTo(path: string) {
     display: block;
   }
 
-  .sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    z-index: var(--z-modal);
-    box-shadow: var(--shadow-lg);
+  .sidebar-toggle-btn {
+    display: none;
   }
 
   .main-content {
-    width: 100%;
+    padding-left: 0 !important;
   }
+
+  .sidebar {
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+/* ── Overlay transition ─────────────────────────────────────── */
+.overlay-enter-active,
+.overlay-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.overlay-enter-from,
+.overlay-leave-to {
+  opacity: 0;
 }
 </style>
