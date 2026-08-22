@@ -550,10 +550,11 @@ function parseEtymology(etymology: string): { text: string; type: 'prefix' | 'ro
 .family-def {
   color: var(--color-text-muted);
 }
-</style>
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .vocab-container { padding: var(--space-3); }
   .vocab-grid { grid-template-columns: 1fr !important; gap: var(--space-3) !important; }
   .vocab-sidebar { width: 100% !important; max-height: 200px; overflow-y: auto; }
 }
+</style>
