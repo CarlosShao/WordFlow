@@ -589,7 +589,7 @@ function onTimeUp() {
   display: flex;
   justify-content: center;
 }
-</style>
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .practice-layout { flex-direction: column !important; }
@@ -598,3 +598,4 @@ function onTimeUp() {
   .option-btn { padding: var(--space-3) !important; font-size: var(--font-size-sm) !important; }
   .option-grid { grid-template-columns: 1fr !important; }
 }
+</style>

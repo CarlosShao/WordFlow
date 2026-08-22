@@ -792,7 +792,7 @@ onUnmounted(() => {
   .audio-box { margin: 12px; }
   .topbar { padding: 12px 16px; }
 }
-</style>
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .pe-listen .transport-bar { flex-wrap: wrap; gap: var(--space-2); }
@@ -801,3 +801,4 @@ onUnmounted(() => {
   .completion-input { max-width: 100% !important; }
   .writing-input { min-height: 80px !important; }
 }
+</style>

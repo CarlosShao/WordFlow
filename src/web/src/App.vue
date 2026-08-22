@@ -50,8 +50,8 @@
       :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
       @click="toggleSidebar"
     >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <polyline :points="sidebarCollapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'" />
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline :points="sidebarCollapsed ? '9 18 15 12 9 6 3 18 9 12 3 6' : '15 18 9 12 15 6 21 18 15 12 21 6'" />
       </svg>
     </button>
 
@@ -60,7 +60,7 @@
       <div
         v-if="isAuthenticated && mobileOpen"
         class="sidebar-overlay"
-        @click.self="mobileOpen = false"
+        @click.self="closeMobileSidebar"
       />
     </Transition>
 
@@ -144,6 +144,16 @@ function toggleMobileSidebar() {
   }
 }
 
+// Fully close the mobile drawer. On mobile the collapse toggle button is
+// hidden, so the only way out of an open drawer is the overlay (or
+// navigation). Resetting mobileOpen alone leaves sidebarCollapsed=false,
+// which keeps the fixed 224px sidebar open and re-hides the hamburger
+// behind it — a state the user can never escape. Both must be cleared.
+function closeMobileSidebar() {
+  mobileOpen.value = false
+  sidebarCollapsed.value = true
+}
+
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
 }
@@ -177,7 +187,7 @@ watch(() => route.path, (p) => {
   }
   // Close mobile sidebar on navigation
   if (isMobile.value) {
-    mobileOpen.value = false
+    closeMobileSidebar()
   }
 })
 
@@ -247,6 +257,11 @@ function navigateTo(path: string) {
   // 设置 → 开弹窗，不跳路由
   if (path === '/settings') {
     settingsDialogVisible.value = true
+    // On mobile the drawer floats above the page; collapse it so the
+    // settings dialog is the only surface (the modal's own overlay still
+    // dims the page behind it). Without this the drawer stays open
+    // underneath the dialog.
+    if (isMobile.value) closeMobileSidebar()
     return
   }
   router.push(path)
@@ -281,33 +296,42 @@ function navigateTo(path: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 44px;
+  width: 28px;
+  height: 48px;
   border: 1px solid var(--color-border);
   border-left: none;
-  border-radius: 0 6px 6px 0;
-  background: var(--color-surface);
-  color: var(--color-text-muted);
+  border-radius: 0 10px 10px 0;
+  /* Persistent tinted fill + shadow so the control reads as a button even
+     at rest (the old version was a near-invisible thin seam tab). */
+  background: var(--color-surface-muted);
+  color: var(--color-text);
   cursor: pointer;
-  transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.06);
+  box-shadow: 2px 0 6px -2px rgba(0, 0, 0, 0.12);
+  transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 }
 
 .sidebar-toggle-btn:hover {
-  background: var(--color-surface-muted);
-  color: var(--color-text);
-  box-shadow: 2px 0 8px -2px rgba(0, 0, 0, 0.12);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  box-shadow: 2px 0 12px -2px rgba(0, 0, 0, 0.22);
+}
+
+.sidebar-toggle-btn:active {
+  transform: translateY(-50%) scale(0.92);
 }
 
 .sidebar-toggle-btn.is-collapsed {
   left: 0;
   border: 1px solid var(--color-border);
-  border-radius: 0 6px 6px 0;
-  box-shadow: 2px 0 6px -2px rgba(0, 0, 0, 0.1);
+  border-radius: 0 10px 10px 0;
+  background: var(--color-surface-muted);
+  box-shadow: 2px 0 6px -2px rgba(0, 0, 0, 0.12);
 }
 
 .sidebar-toggle-btn.is-collapsed:hover {
-  background: var(--color-surface-muted);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  box-shadow: 2px 0 12px -2px rgba(0, 0, 0, 0.22);
 }
 
 /* Page Transition */
@@ -426,6 +450,19 @@ function navigateTo(path: string) {
 
   .sidebar-overlay {
     display: block;
+    /* Start the overlay at the sidebar's right edge so it only dims the
+       main content, never the drawer itself. Previously inset:0 made the
+       overlay (z-index 400) sit on top of the sidebar (z-index 100),
+       so taps on menu items hit the overlay and closed the drawer instead
+       of navigating. */
+    left: var(--app-sidebar-width, 224px);
+  }
+
+  /* Keep the drawer above the overlay as a safety net (e.g. when the
+     sidebar has been widened past its default), so menu items always
+     receive clicks. */
+  .app-layout .sidebar {
+    z-index: calc(var(--z-overlay) + 1);
   }
 
   .sidebar-toggle-btn {

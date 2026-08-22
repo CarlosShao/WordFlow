@@ -919,4 +919,54 @@ function resetSettings() {
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
 }
+
+/* ── Mobile: stack the two-column layout into a top tab bar + scrollable
+   content. The fixed 180px left nav would otherwise leave the content
+   column only ~165px wide on a phone, crushing every setting. ── */
+@media (max-width: 768px) {
+  .settings-dialog-root :deep(.modal-content.lg) {
+    width: 95vw;
+  }
+
+  .dialog-body-layout {
+    flex-direction: column;
+    min-height: 0;
+    max-height: 82vh;
+  }
+
+  .settings-nav {
+    width: 100%;
+    flex-shrink: 0;
+    padding: var(--space-2) 0;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .nav-list {
+    flex-direction: row;
+    gap: 4px;
+    padding: 0 var(--space-2);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-item {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+
+  .settings-content {
+    min-height: 0;
+  }
+
+  .content-scroll {
+    padding: var(--space-3);
+  }
+
+  .panel-footer {
+    padding: var(--space-3);
+  }
+}
 </style>
