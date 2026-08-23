@@ -45,6 +45,9 @@ src/server/src/scripts/dbg-*.ts
 .openclaw/
 .openclaw-attachments/
 
+# Git worktree scratch
+.worktrees/
+
 # Agent / IDE runtime guidance files (workspace-local, never share)
 AGENTS.md
 HEARTBEAT.md
