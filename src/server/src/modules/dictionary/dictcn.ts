@@ -64,11 +64,13 @@ export async function lookupDictcn(word: string): Promise<DictionaryEntry | null
     translations: raw.translations,
     definitions: raw.definitions.map((d) => ({ pos: d.pos, en: d.en })),
     examples: raw.examples,
+    phrases: [],
     synonyms: raw.synonyms,
     antonyms: raw.antonyms,
     relatedWords: [],
     exams: [],
     source: 'dictcn',
+    extended: undefined,
   }
 }
 

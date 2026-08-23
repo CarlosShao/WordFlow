@@ -1,293 +1,286 @@
 <template>
   <div class="vocabulary-page">
-    <PageHeader title="词汇" subtitle="生词本与词卡复习" />
+    <PageHeader title="词汇" :subtitle="`词典库 · 共 ${total.toLocaleString()} 词`" />
 
-    <!-- Tabs -->
-    <BaseTabs v-model="activeTab" :tabs="tabs" />
-
-    <!-- Word List Tab -->
-    <section v-if="activeTab === 'list'" class="word-list-section">
-      <div class="list-header">
-        <BaseInput v-model="vocab.searchQuery" placeholder="搜索单词...">
-          <template #prefix>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.3-4.3"/>
-            </svg>
-          </template>
-        </BaseInput>
-        <BaseButton variant="secondary" @click="startReview">
-          开始复习 ({{ vocab.reviewList.length }})
-        </BaseButton>
+    <!-- Search + Pagination -->
+    <div class="toolbar">
+      <BaseInput v-model="searchQuery" placeholder="搜索单词..." @input="onSearchInput">
+        <template #prefix>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.3-4.3"/>
+          </svg>
+        </template>
+      </BaseInput>
+      <div class="page-info" v-if="!loading">
+        第 {{ page }} / {{ totalPages }} 页
       </div>
+    </div>
 
-      <!-- Loading Skeleton -->
-      <Skeleton v-if="vocab.loading" variant="table" />
+    <!-- Loading -->
+    <Skeleton v-if="loading" variant="table" />
 
-      <!-- Empty State -->
-      <EmptyState
-        v-else-if="vocab.words.length === 0"
-        title="暂无词汇"
-        description="开始阅读和听力练习，自动收集生词"
-      />
+    <!-- Empty -->
+    <EmptyState
+      v-else-if="entries.length === 0"
+      title="未找到词汇"
+      description="试试搜索其他单词"
+    />
 
-      <BaseTable
-        v-else
-        :columns="tableColumns"
-        :data="filteredWords as any"
-        @row-click="showWordDetailFromRow"
+    <!-- Word List -->
+    <div v-else class="word-grid">
+      <div
+        v-for="entry in entries"
+        :key="entry.id"
+        class="word-card"
+        @click="showDetail(entry)"
       >
-        <template #word="{ row }">
-          <div class="word-cell">
-            <span class="word-text">{{ row.word }}</span>
-            <span class="word-phonetic">{{ row.phonetic }}</span>
-            <PronunciationBtn :text="row.word" size="sm" />
-          </div>
-        </template>
-        <template #definition="{ row }">
-          <span class="word-definition">{{ row.chineseDefinition }}</span>
-        </template>
-        <template #masteryLevel="{ row }">
-          <div class="mastery-bar">
-            <div class="mastery-fill" :style="{ width: `${row.masteryLevel}%` }" :class="getMasteryClass(row.masteryLevel)" />
-          </div>
-        </template>
-        <template #actions="{ row }">
-          <BaseButton size="sm" variant="ghost" @click.stop="showWordDetail(row)">
-            详情
-          </BaseButton>
-        </template>
-      </BaseTable>
-    </section>
-
-    <!-- Flashcard Tab -->
-    <section v-if="activeTab === 'flashcard'" class="flashcard-section">
-      <div v-if="currentCard" class="flashcard-container">
-        <FlashCard
-          ref="flashCardRef"
-          :front="{
-            word: currentCard.word,
-            phonetic: currentCard.phonetic,
-            partOfSpeech: currentCard.partOfSpeech
-          }"
-          :back="{
-            definition: currentCard.definition,
-            chineseDefinition: currentCard.chineseDefinition,
-            example: currentCard.examples.length > 0 ? currentCard.examples[0] : undefined
-          }"
-        />
-
-        <div class="flashcard-controls">
-          <BaseButton variant="danger" @click="markAsHard">
-            再看看
-          </BaseButton>
-          <BaseButton variant="secondary" @click="markAsGood">
-            记住了
-          </BaseButton>
-          <BaseButton variant="primary" @click="markAsEasy">
-            很简单
-          </BaseButton>
+        <div class="word-card-header">
+          <span class="word-card-text">{{ entry.word }}</span>
+          <span v-if="entry.payload?.phonetic?.us" class="word-card-phonetic">/{{ entry.payload.phonetic.us }}/</span>
         </div>
-
-        <div class="flashcard-progress">
-          <span>{{ currentIndex + 1 }} / {{ vocab.reviewList.length }}</span>
-          <BaseProgress :value="((currentIndex + 1) / vocab.reviewList.length) * 100" :show-value="false" />
+        <div class="word-card-body">
+          <p v-if="entry.payload?.translations?.length" class="word-card-translation">
+            {{ entry.payload.translations.map(t => t.cn).join('；') }}
+          </p>
+          <div v-if="entry.payload?.exams?.length" class="word-card-exams">
+            <BaseTag v-for="exam in entry.payload.exams.slice(0, 4)" :key="exam" size="sm">{{ exam }}</BaseTag>
+          </div>
         </div>
       </div>
+    </div>
 
-      <div v-else class="empty-state">
-        <p>没有需要复习的单词</p>
-        <BaseButton @click="activeTab = 'list'">查看词库</BaseButton>
-      </div>
-    </section>
+    <!-- Pagination -->
+    <div v-if="totalPages > 1" class="pagination">
+      <BaseButton variant="secondary" size="sm" :disabled="page <= 1" @click="changePage(page - 1)">上一页</BaseButton>
+      <span class="page-numbers">
+        <button
+          v-for="p in visiblePages"
+          :key="p"
+          :class="['page-btn', { active: p === page }]"
+          @click="changePage(p)"
+        >{{ p }}</button>
+      </span>
+      <BaseButton variant="secondary" size="sm" :disabled="page >= totalPages" @click="changePage(page + 1)">下一页</BaseButton>
+    </div>
 
     <!-- Word Detail Modal -->
-    <BaseModal v-model="showDetail" :title="selectedWord?.word || ''" size="md">
-      <div v-if="selectedWord" class="word-detail">
+    <BaseModal v-model="detailVisible" :title="selectedEntry?.word || ''" size="md">
+      <div v-if="selectedEntry" class="word-detail">
         <div class="detail-header">
-          <div class="detail-word">
-            <div class="detail-word-title">
-              <h2>{{ selectedWord.word }}</h2>
-              <PronunciationBtn :text="selectedWord.word" size="md" />
+          <div>
+            <h2 class="detail-word-title">{{ selectedEntry.word }}</h2>
+            <div v-if="selectedEntry.payload?.phonetic" class="detail-phonetic-row">
+              <span v-if="selectedEntry.payload.phonetic.uk" class="detail-phonetic">
+                英 /{{ selectedEntry.payload.phonetic.uk }}/
+                <button
+                  v-if="selectedEntry.payload.phonetic.ukAudio"
+                  class="audio-btn"
+                  title="播放英式发音"
+                  @click="playAudio(selectedEntry.payload.phonetic.ukAudio)"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M15.54 8.46a5 5 0 010 7.07" />
+                    <path d="M19.07 4.93a10 10 0 010 14.14" />
+                  </svg>
+                </button>
+              </span>
+              <span v-if="selectedEntry.payload.phonetic.us" class="detail-phonetic">
+                美 /{{ selectedEntry.payload.phonetic.us }}/
+                <button
+                  v-if="selectedEntry.payload.phonetic.usAudio"
+                  class="audio-btn"
+                  title="播放美式发音"
+                  @click="playAudio(selectedEntry.payload.phonetic.usAudio)"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M15.54 8.46a5 5 0 010 7.07" />
+                    <path d="M19.07 4.93a10 10 0 010 14.14" />
+                  </svg>
+                </button>
+              </span>
             </div>
-            <p class="detail-phonetic">{{ selectedWord.phonetic }}</p>
-            <p class="detail-pos">{{ selectedWord.partOfSpeech }}</p>
-          </div>
-          <div class="detail-mastery">
-            <div class="mastery-circle" :class="getMasteryClass(selectedWord.masteryLevel)">
-              {{ selectedWord.masteryLevel }}%
-            </div>
-            <span class="mastery-label">掌握度</span>
           </div>
         </div>
 
-        <div class="detail-definitions">
-          <div class="definition-item">
-            <h4>中文释义</h4>
-            <p>{{ selectedWord.chineseDefinition }}</p>
-          </div>
-          <div class="definition-item">
-            <h4>英文释义</h4>
-            <p>{{ selectedWord.definition }}</p>
+        <!-- Chinese translations -->
+        <div v-if="selectedEntry.payload?.translations?.length" class="detail-section">
+          <h4>中文释义</h4>
+          <div v-for="(t, i) in selectedEntry.payload.translations" :key="i" class="detail-translation">
+            <span class="pos" v-if="t.pos">{{ t.pos }}</span>
+            <span>{{ t.cn }}</span>
           </div>
         </div>
 
-        <div v-if="selectedWord.examples.length > 0" class="detail-examples">
+        <!-- English definitions -->
+        <div v-if="selectedEntry.payload?.definitions?.length" class="detail-section">
+          <h4>英文释义</h4>
+          <div v-for="(d, i) in selectedEntry.payload.definitions" :key="i" class="detail-definition">
+            <span class="pos" v-if="d.pos">{{ d.pos }}</span>
+            <span>{{ d.en }}</span>
+            <div v-if="d.synonyms?.length" class="detail-synonyms">
+              <span class="syn-label">同义词: </span>
+              <BaseTag v-for="syn in d.synonyms" :key="syn" size="sm">{{ syn }}</BaseTag>
+            </div>
+          </div>
+        </div>
+
+        <!-- Examples -->
+        <div v-if="selectedEntry.payload?.examples?.length" class="detail-section">
           <h4>例句</h4>
-          <div v-for="example in selectedWord.examples" :key="example.id" class="example-item">
-            <p class="example-en">"{{ example.english }}"</p>
-            <p class="example-zh">{{ example.chinese }}</p>
-            <span class="example-source">{{ example.source }}</span>
-          </div>
-        </div>
-
-        <div v-if="selectedWord.wordFamily.length > 0" class="detail-family">
-          <h4>词族</h4>
-          <div class="family-list">
-            <div v-for="family in selectedWord.wordFamily" :key="family.word" class="family-item">
-              <span class="family-word">{{ family.word }}</span>
-              <span class="family-pos">{{ family.partOfSpeech }}</span>
-              <span class="family-def">{{ family.definition }}</span>
+          <div v-for="(ex, i) in selectedEntry.payload.examples" :key="i" class="detail-example">
+            <div class="example-row">
+              <p class="example-en">{{ ex.en }}</p>
+              <button
+                class="audio-btn audio-btn--inline"
+                title="播放例句朗读"
+                @click="speakText(ex.en, 'en-US')"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 010 7.07" />
+                  <path d="M19.07 4.93a10 10 0 010 14.14" />
+                </svg>
+              </button>
             </div>
+            <p class="example-zh">{{ ex.cn }}</p>
           </div>
         </div>
 
-        <div v-if="selectedWord.etymology" class="detail-etymology">
-          <h4>词源</h4>
-          <WordEtymology
-            :word="selectedWord.word"
-            :parts="parseEtymology(selectedWord.etymology)"
-          />
+        <!-- Synonyms -->
+        <div v-if="selectedEntry.payload?.synonyms?.length" class="detail-section">
+          <h4>同义词</h4>
+          <div class="tag-list">
+            <BaseTag v-for="syn in selectedEntry.payload.synonyms" :key="syn" size="sm">{{ syn }}</BaseTag>
+          </div>
         </div>
 
-        <div class="detail-reviews">
-          <h4>复习曲线</h4>
-          <ForgettingCurve :reviews="selectedWord.reviewHistory || []" />
+        <!-- Exams -->
+        <div v-if="selectedEntry.payload?.exams?.length" class="detail-section">
+          <h4>考试范围</h4>
+          <div class="tag-list">
+            <BaseTag v-for="exam in selectedEntry.payload.exams" :key="exam" size="sm">{{ exam }}</BaseTag>
+          </div>
         </div>
       </div>
       <template #footer>
-        <BaseButton variant="secondary" @click="showDetail = false">关闭</BaseButton>
+        <BaseButton variant="secondary" @click="detailVisible = false">关闭</BaseButton>
       </template>
     </BaseModal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { PageHeader, BaseTabs, BaseInput, BaseButton, BaseTable, BaseProgress, BaseModal, FlashCard, Skeleton, EmptyState, PronunciationBtn, WordEtymology, ForgettingCurve } from '../components'
-import { useVocabularyStore } from '../stores/vocabulary'
-import { useToast } from '../composables/useToast'
-import type { Vocabulary } from '../types'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { PageHeader, BaseInput, BaseButton, BaseModal, BaseTag, Skeleton, EmptyState } from '../components'
+import { vocabularyApi, type DictionaryEntry } from '../api/vocabulary'
 
-const vocab = useVocabularyStore()
-const toast = useToast()
+const entries = ref<DictionaryEntry[]>([])
+const loading = ref(false)
+const searchQuery = ref('')
+const page = ref(1)
+const limit = ref(50)
+const total = ref(0)
+const totalPages = ref(0)
+const detailVisible = ref(false)
+const selectedEntry = ref<DictionaryEntry | null>(null)
 
-const activeTab = ref('list')
-const currentIndex = ref(0)
-const showDetail = ref(false)
-const selectedWord = ref<Vocabulary | null>(null)
-const flashCardRef = ref()
+let searchTimer: ReturnType<typeof setTimeout> | null = null
 
-const tabs = [
-  { value: 'list', label: '词库' },
-  { value: 'flashcard', label: '词卡复习' }
-]
-
-const tableColumns = [
-  { key: 'word', label: '单词', width: '200px' },
-  { key: 'definition', label: '释义' },
-  { key: 'masteryLevel', label: '掌握度', width: '120px' },
-  { key: 'actions', label: '', width: '80px' }
-]
-
-const filteredWords = computed(() => {
-  if (!vocab.searchQuery) return vocab.words
-  const query = vocab.searchQuery.toLowerCase()
-  return vocab.words.filter(w =>
-    w.word.toLowerCase().includes(query) ||
-    w.chineseDefinition.includes(vocab.searchQuery)
-  )
+const visiblePages = computed(() => {
+  const pages: number[] = []
+  const start = Math.max(1, page.value - 3)
+  const end = Math.min(totalPages.value, page.value + 3)
+  for (let i = start; i <= end; i++) pages.push(i)
+  return pages
 })
 
-const currentCard = computed(() => {
-  if (vocab.reviewList.length === 0) return null
-  return vocab.reviewList[currentIndex.value]
-})
+async function fetchList() {
+  loading.value = true
+  try {
+    const res = await vocabularyApi.getDictionaryList({
+      page: page.value,
+      limit: limit.value,
+      keyword: searchQuery.value || undefined,
+    })
+    entries.value = res.items
+    total.value = res.total
+    page.value = res.page
+    totalPages.value = res.totalPages
+  } catch (e) {
+    console.error('Failed to fetch dictionary:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+function onSearchInput() {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    page.value = 1
+    fetchList()
+  }, 300)
+}
+
+function changePage(p: number) {
+  page.value = p
+  fetchList()
+}
+
+function showDetail(entry: DictionaryEntry) {
+  selectedEntry.value = entry
+  detailVisible.value = true
+}
+
+// ── 音频播放 ────────────────────────────────────────────────────
+
+let currentAudio: HTMLAudioElement | null = null
+
+/** 播放有道词典音频 URL */
+function playAudio(url: string) {
+  if (!url) return
+  // 停止当前播放
+  if (currentAudio) {
+    currentAudio.pause()
+    currentAudio = null
+  }
+  // 有道 URL 中有双重编码（%2526 → %26），需要先解码一次
+  const decodedUrl = decodeURIComponent(url)
+  const audio = new Audio(decodedUrl)
+  currentAudio = audio
+  audio.play().catch((e) => {
+    console.warn('Audio playback failed:', e)
+    // fallback: 用 TTS
+    speakText(selectedEntry.value?.word || '', 'en-US')
+  })
+  audio.onended = () => {
+    currentAudio = null
+  }
+}
+
+/** 用浏览器 TTS 播放文本（例句朗读 fallback） */
+function speakText(text: string, lang: string = 'en-US') {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = lang
+  utterance.rate = 0.85
+  window.speechSynthesis.speak(utterance)
+}
 
 onMounted(() => {
-  vocab.fetchList()
-  vocab.fetchReviewList()
+  fetchList()
 })
 
-function getMasteryClass(level: number): string {
-  if (level >= 80) return 'mastery-high'
-  if (level >= 50) return 'mastery-medium'
-  return 'mastery-low'
-}
-
-function showWordDetail(row: Record<string, any>) {
-  const word = vocab.words.find(w => w.id === row.id)
-  if (word) {
-    selectedWord.value = word
-    showDetail.value = true
+onUnmounted(() => {
+  if (searchTimer) clearTimeout(searchTimer)
+  if (currentAudio) {
+    currentAudio.pause()
+    currentAudio = null
   }
-}
-
-function showWordDetailFromRow(row: Record<string, any>) {
-  const word = vocab.words.find(w => w.id === row.id)
-  if (word) {
-    selectedWord.value = word
-    showDetail.value = true
-  }
-}
-
-function startReview() {
-  if (vocab.reviewList.length > 0) {
-    activeTab.value = 'flashcard'
-    currentIndex.value = 0
-  }
-}
-
-function markAsHard() {
-  // TODO: Update mastery level
-  toast.info('继续加油')
-  nextCard()
-}
-
-function markAsGood() {
-  // TODO: Update mastery level
-  toast.success('已掌握')
-  nextCard()
-}
-
-function markAsEasy() {
-  // TODO: Update mastery level
-  toast.success('已掌握')
-  nextCard()
-}
-
-function nextCard() {
-  if (currentIndex.value < vocab.reviewList.length - 1) {
-    currentIndex.value++
-    flashCardRef.value?.reset()
-  } else {
-    currentIndex.value = 0
-  }
-}
-
-function parseEtymology(etymology: string): { text: string; type: 'prefix' | 'root' | 'suffix'; meaning: string }[] {
-  // Simple parsing: split by common separators and try to extract parts
-  // For mock purposes, create basic parts from the etymology string
-  if (!etymology) return []
-  const words = etymology.split(/[\s,;]+/).filter(Boolean)
-  if (words.length === 0) return [{ text: etymology, type: 'root', meaning: etymology }]
-  
-  return words.map((word, i) => ({
-    text: word,
-    type: (i === 0 ? 'prefix' : i === words.length - 1 ? 'suffix' : 'root') as 'prefix' | 'root' | 'suffix',
-    meaning: word
-  }))
-}
+})
 </script>
 
 <style scoped>
@@ -297,12 +290,7 @@ function parseEtymology(etymology: string): { text: string; type: 'prefix' | 'ro
   margin: 0 auto;
 }
 
-/* Search & Filter */
-.word-list-section {
-  margin-top: var(--space-4);
-}
-
-.list-header {
+.toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -310,89 +298,109 @@ function parseEtymology(etymology: string): { text: string; type: 'prefix' | 'ro
   margin-bottom: var(--space-4);
 }
 
-.word-cell {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+.page-info {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
-.word-text {
-  font-weight: 600;
+/* ── Word Grid ───────────────────────────────────────────────── */
+
+.word-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-3);
+}
+
+.word-card {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.word-card:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.word-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.word-card-text {
+  font-weight: 700;
+  font-size: 1rem;
   color: var(--color-text);
 }
 
-.word-phonetic {
+.word-card-phonetic {
   font-size: 0.75rem;
   color: var(--color-text-muted);
   font-family: var(--font-mono);
 }
 
-.word-definition {
-  font-size: 0.875rem;
+.word-card-translation {
+  font-size: 0.8125rem;
   color: var(--color-text-muted);
-}
-
-.mastery-bar {
-  width: 80px;
-  height: 6px;
-  background: var(--color-surface-muted);
-  border-radius: 3px;
+  margin-bottom: var(--space-1);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.mastery-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-
-.mastery-high { background: var(--color-success-600); }
-.mastery-medium { background: var(--color-warning-600); }
-.mastery-low { background: var(--color-danger-600); }
-
-/* Flashcard Section */
-.flashcard-section {
-  margin-top: var(--space-4);
-}
-
-.flashcard-container {
+.word-card-exams {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* ── Pagination ──────────────────────────────────────────────── */
+
+.pagination {
+  display: flex;
   align-items: center;
-  gap: var(--space-4);
-}
-
-.flashcard-controls {
-  display: flex;
+  justify-content: center;
   gap: var(--space-3);
+  margin-top: var(--space-6);
 }
 
-.flashcard-progress {
+.page-numbers {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  max-width: 400px;
-  font-size: 0.875rem;
+  gap: 4px;
+}
+
+.page-btn {
+  min-width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-8);
-  text-align: center;
+.page-btn:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
 }
 
-.empty-state p {
-  font-size: 1rem;
-  color: var(--color-text-muted);
+.page-btn.active {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  border-color: var(--color-primary);
 }
 
-/* Word Detail */
+/* ── Detail Modal ────────────────────────────────────────────── */
+
 .word-detail {
   max-height: 60vh;
   overflow-y: auto;
@@ -400,89 +408,41 @@ function parseEtymology(etymology: string): { text: string; type: 'prefix' | 'ro
 
 .detail-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: var(--space-4);
-  padding-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-3);
   border-bottom: 1px solid var(--color-border);
 }
 
 .detail-word-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.detail-word h2 {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--color-text);
   margin: 0;
 }
 
+.detail-phonetic-row {
+  display: flex;
+  gap: var(--space-4);
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
 .detail-phonetic {
-  font-size: 1rem;
+  font-size: 0.8125rem;
   color: var(--color-text-muted);
   font-family: var(--font-mono);
-}
-
-.detail-pos {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-}
-
-.detail-mastery {
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 4px;
 }
 
-.mastery-circle {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.mastery-circle.mastery-high {
-  background: var(--color-success-50);
-  color: var(--color-success-700);
-}
-
-.mastery-circle.mastery-medium {
-  background: var(--color-warning-100);
-  color: var(--color-warning-600);
-}
-
-.mastery-circle.mastery-low {
-  background: var(--color-danger-50);
-  color: var(--color-danger-700);
-}
-
-.mastery-label {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-.detail-definitions,
-.detail-examples,
-.detail-family,
-.detail-etymology,
-.detail-reviews {
+.detail-section {
   margin-bottom: var(--space-4);
 }
 
-.detail-definitions h4,
-.detail-examples h4,
-.detail-family h4,
-.detail-etymology h4,
-.detail-reviews h4 {
-  font-size: 0.8125rem;
+.detail-section h4 {
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-muted);
   text-transform: uppercase;
@@ -490,71 +450,101 @@ function parseEtymology(etymology: string): { text: string; type: 'prefix' | 'ro
   margin-bottom: var(--space-2);
 }
 
-.definition-item {
-  margin-bottom: var(--space-2);
+.detail-translation,
+.detail-definition {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+  font-size: 0.875rem;
 }
 
-.definition-item p {
-  font-size: 0.9375rem;
-  color: var(--color-text);
-}
-
-.example-item {
-  padding: var(--space-3);
-  background: var(--color-surface-muted);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-2);
-}
-
-.example-item .example-en {
-  font-size: 0.9375rem;
-  color: var(--color-text);
+.pos {
+  display: inline-block;
+  min-width: 36px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
   font-style: italic;
-  margin-bottom: var(--space-1);
+  flex-shrink: 0;
 }
 
-.example-item .example-zh {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  margin-bottom: var(--space-1);
+.detail-synonyms {
+  margin-left: 44px;
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
-.example-source {
+.syn-label {
   font-size: 0.75rem;
   color: var(--color-text-muted);
 }
 
-.family-list {
+.detail-example {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+}
+
+.example-row {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-2);
 }
 
-.family-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+.example-en {
   font-size: 0.875rem;
-}
-
-.family-word {
-  font-weight: 600;
+  font-style: italic;
   color: var(--color-text);
+  margin: 0;
+  flex: 1;
 }
 
-.family-pos {
-  font-size: 0.75rem;
+.example-zh {
+  font-size: 0.8125rem;
   color: var(--color-text-muted);
+  margin: 4px 0 0;
 }
 
-.family-def {
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* ── Audio Button ────────────────────────────────────────────── */
+
+.audio-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
 }
 
-/* ── Responsive ── */
+.audio-btn:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-primary);
+  border-color: var(--color-border-strong);
+}
+
+.audio-btn--inline {
+  margin-top: 1px;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .vocab-container { padding: var(--space-3); }
-  .vocab-grid { grid-template-columns: 1fr !important; gap: var(--space-3) !important; }
-  .vocab-sidebar { width: 100% !important; max-height: 200px; overflow-y: auto; }
+  .vocabulary-page { padding: var(--space-3); }
+  .word-grid { grid-template-columns: 1fr; }
 }
 </style>

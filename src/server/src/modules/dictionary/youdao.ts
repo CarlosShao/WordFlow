@@ -10,7 +10,7 @@
  */
 
 import { logger } from '../../common/logger.js'
-import type { DictionaryEntry, Definition, Example, Phonetic, RelatedWord } from './types.js'
+import type { DictionaryEntry, Definition, Example, Phonetic, RelatedWord, ExtendedDictionaries, CollinsEntry, CollinsPrimarySense, Discrimination, Encyclopedia, Phrase } from './types.js'
 
 const YUDAO_API = 'https://dict.youdao.com/jsonapi'
 const AUDIO_BASE = 'https://dict.youdao.com/dictvoice'
@@ -66,6 +66,184 @@ interface YoudaoPayload {
     }>
   }
   blng_sents_part?: { 'sentence-pair'?: Array<{ 'sentence-eng'?: string; 'sentence-translation'?: string }> }
+  // --- Extended third-party dictionaries (plaintext where available) ---
+  collins?: {
+    collins_entries?: Array<{
+      star?: string
+      entries?: {
+        entry?: Array<{
+          tran_entry?: Array<{
+            pos_entry?: { pos?: string; pos_tips?: string }
+            exam_sents?: { sent?: Array<{ eng_sent?: string; chn_sent?: string }> } | undefined
+            tran?: string
+          }>
+        }>
+      }
+    }>
+  }
+  collins_primary?: {
+    words?: { word?: string; indexforms?: string[] }
+    gramcat?: Array<{
+      pronunciation?: string
+      audiourl?: string
+      senses?: Array<{
+        partofspeech?: string
+        definition?: string
+        examples?: Array<{ example?: string; sense?: { word?: string } }>
+      }>
+    }>
+  }
+  etym?: {
+    etyms?: {
+      zh?: Array<{ word?: string; value?: string; source?: string }>
+    }
+  }
+  discriminate?: {
+    data?: Array<{
+      tran?: string
+      return_phrase?: string
+      usages?: Array<{ headword?: string; usage?: string }>
+    }>
+  }
+  wikipedia_digest?: {
+    summarys?: Array<{ summary?: string; key?: string }>
+    source?: { name?: string; url?: string }
+  }
+  // webster / oxford / oxfordAdvance* are encrypted (encryptedData) — unavailable on web.
+  oxford?: { encryptedData?: string }
+  oxfordAdvance?: { encryptedData?: string }
+  oxfordAdvanceHtml?: { encryptedData?: string }
+  oxfordAdvanceTen?: { encryptedData?: string }
+  webster?: { encryptedData?: string }
+  // Common phrases / collocations (词组短语)
+  phrs?: {
+    word?: string
+    phrs?: Array<{
+      phr?: {
+        headword?: { l?: { i?: string | string[] } }
+        trs?: Array<{ tr?: { l?: { i?: string | string[] } } }>
+        source?: string
+      }
+    }>
+  }
+}
+
+/**
+ * Parse Collins (柯林斯英汉双解) block — plaintext in `collins.collins_entries`.
+ */
+function parseCollins(payload: YoudaoPayload): { star?: string; entries: CollinsEntry[] } | undefined {
+  const block = payload.collins?.collins_entries?.[0]
+  if (!block) return undefined
+  const entries: CollinsEntry[] = []
+  for (const entry of block.entries?.entry ?? []) {
+    for (const te of entry.tran_entry ?? []) {
+      const pos = te.pos_entry?.pos ?? ''
+      const posTips = te.pos_entry?.pos_tips
+      const def = te.tran ? stripHtml(te.tran) : ''
+      if (!def) continue
+      const examples = (te.exam_sents?.sent ?? [])
+        .map((s) => ({ en: s.eng_sent?.trim() ?? '', cn: s.chn_sent?.trim() ?? '' }))
+        .filter((e) => e.en)
+      entries.push({ pos, posTips, def, examples })
+    }
+  }
+  if (entries.length === 0) return undefined
+  return { star: block.star, entries }
+}
+
+/**
+ * Parse Collins Primary (柯林斯精选) block — plaintext in `collins_primary.gramcat`.
+ */
+function parseCollinsPrimary(payload: YoudaoPayload): ExtendedDictionaries['collinsPrimary'] | undefined {
+  const gramcats = payload.collins_primary?.gramcat
+  if (!gramcats || gramcats.length === 0) return undefined
+  const senses: CollinsPrimarySense[] = []
+  for (const g of gramcats) {
+    const pos = g.partofspeech ?? ''
+    for (const s of g.senses ?? []) {
+      const def = s.definition?.trim()
+      if (!def) continue
+      const examples = (s.examples ?? [])
+        .map((e) => ({ en: e.example?.trim() ?? '', cn: e.sense?.word?.trim() ?? '' }))
+        .filter((x) => x.en)
+      senses.push({ pos, def, examples })
+    }
+  }
+  if (senses.length === 0) return undefined
+  return {
+    phonetic: gramcats[0]?.pronunciation,
+    audioUrl: gramcats[0]?.audiourl,
+    senses,
+  }
+}
+
+/**
+ * Parse etymology (词源) — plaintext in `etym.etyms.zh[].value`.
+ */
+function parseEtymology(payload: YoudaoPayload): string | undefined {
+  const value = payload.etym?.etyms?.zh?.[0]?.value
+  return value && value.trim() ? value.trim() : undefined
+}
+
+/**
+ * Parse word discrimination / usage comparison (词语辨析) — `discriminate.data`.
+ */
+function parseDiscrimination(payload: YoudaoPayload): Discrimination[] | undefined {
+  const data = payload.discriminate?.data
+  if (!data || data.length === 0) return undefined
+  const out: Discrimination[] = []
+  for (const d of data) {
+    const usages = (d.usages ?? [])
+      .map((u) => ({ word: u.headword?.trim() ?? '', usage: u.usage?.trim() ?? '' }))
+      .filter((u) => u.word && u.usage)
+    if (usages.length === 0) continue
+    out.push({ tran: d.tran?.trim(), usages })
+  }
+  return out.length > 0 ? out : undefined
+}
+
+/**
+ * Parse encyclopedia digest (百科释义) — plaintext in `wikipedia_digest`.
+ */
+function parseEncyclopedia(payload: YoudaoPayload): Encyclopedia | undefined {
+  const summary = payload.wikipedia_digest?.summarys?.[0]?.summary
+  if (!summary || !summary.trim()) return undefined
+  return {
+    summary: summary.trim(),
+    sourceName: payload.wikipedia_digest?.source?.name ?? '维基百科',
+    sourceUrl: payload.wikipedia_digest?.source?.url ?? '',
+  }
+}
+
+/**
+ * Parse common phrases / collocations (词组短语) — plaintext in `phrs`.
+ */
+function parsePhrases(payload: YoudaoPayload): Phrase[] | undefined {
+  const raw = payload.phrs?.phrs
+  if (!raw || raw.length === 0) return undefined
+  const out: Phrase[] = []
+  for (const item of raw) {
+    const phr = item.phr
+    if (!phr) continue
+    const rawHead = phr.headword?.l?.i
+    const phrase = Array.isArray(rawHead) ? rawHead.join('') : rawHead
+    if (!phrase || !phrase.trim()) continue
+    const translations: Phrase['translations'] = []
+    for (const tr of phr.trs ?? []) {
+      const rawTr = tr.tr?.l?.i
+      const cnRaw = Array.isArray(rawTr) ? rawTr.join('；') : rawTr
+      if (!cnRaw) continue
+      const parts = splitPosCn(cnRaw)
+      if (parts.pos) {
+        translations.push({ pos: parts.pos, cn: parts.cn })
+      } else {
+        translations.push({ cn: parts.cn })
+      }
+    }
+    if (translations.length === 0) continue
+    out.push({ phrase: phrase.trim(), translations, source: phr.source?.trim() || undefined })
+  }
+  return out.length > 0 ? out : undefined
 }
 
 /**
@@ -179,16 +357,46 @@ export async function lookupYoudao(word: string): Promise<DictionaryEntry | null
     if (en) examples.push({ en, cn })
   }
 
+  const phrases = parsePhrases(payload)
+
+  const collins = parseCollins(payload)
+  const collinsPrimary = parseCollinsPrimary(payload)
+  const etymology = parseEtymology(payload)
+  const discrimination = parseDiscrimination(payload)
+  const encyclopedia = parseEncyclopedia(payload)
+  // Youdao's web endpoint returns oxford / oxfordAdvance / webster as encryptedData only.
+  // The decryption key is shipped inside the desktop client, not on the web, so we cannot
+  // capture these sources here. Mark them explicitly as unavailable.
+  const unavailable: string[] = []
+  if (payload.oxford?.encryptedData || payload.oxfordAdvance?.encryptedData || payload.oxfordAdvanceHtml?.encryptedData || payload.oxfordAdvanceTen?.encryptedData) {
+    unavailable.push('oxford')
+  }
+  if (payload.webster?.encryptedData) unavailable.push('webster')
+
+  const extended: ExtendedDictionaries | undefined =
+    collins || collinsPrimary || etymology || discrimination || encyclopedia || unavailable.length > 0
+      ? {
+          ...(collins && { collins }),
+          ...(collinsPrimary && { collinsPrimary }),
+          ...(etymology && { etymology }),
+          ...(discrimination && { discrimination }),
+          ...(encyclopedia && { encyclopedia }),
+          ...(unavailable.length > 0 && { unavailable }),
+        }
+      : undefined
+
   return {
     word,
     phonetic,
     translations,
     definitions,
     examples,
+    phrases: phrases ?? [],
     synonyms,
     antonyms: [],
     relatedWords,
     exams: payload.ec?.exam_type ?? [],
     source: 'youdao',
+    extended,
   }
 }

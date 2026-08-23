@@ -82,6 +82,7 @@ function normalizeDbPayload(raw: Record<string, unknown>): DictionaryEntry {
     translations: r.translations ?? [],
     definitions: r.definitions ?? [],
     examples: r.examples ?? [],
+    phrases: r.phrases ?? [],
     synonyms: r.synonyms ?? [],
     antonyms: r.antonyms ?? [],
     relatedWords: r.relatedWords ?? [],

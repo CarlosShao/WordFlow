@@ -27,12 +27,77 @@ export interface Example {
   cn: string
 }
 
+/** A word phrase / collocation (词组短语), e.g. "say hello" -> 打招呼 */
+export interface Phrase {
+  phrase: string
+  /** Chinese translations grouped by part of speech */
+  translations: { pos?: string; cn: string }[]
+  /** Some phrases carry a source dictionary label, e.g. "21世纪" */
+  source?: string
+}
+
 export interface Phonetic {
   us?: string
   uk?: string
   /** Pronunciation audio URLs */
   usAudio?: string
   ukAudio?: string
+}
+
+/** A Collins (柯林斯) dictionary entry */
+export interface CollinsEntry {
+  pos: string
+  /** Part-of-speech gloss in Chinese, e.g. 不及物动词 */
+  posTips?: string
+  /** Bilingual definition with embedded <b> highlight tags (strip for plain text) */
+  def: string
+  examples: { en: string; cn: string }[]
+}
+
+/** A Collins Primary (柯林斯精选) sense */
+export interface CollinsPrimarySense {
+  pos: string
+  def: string
+  examples: { en: string; cn: string }[]
+}
+
+/** A word discrimination / usage comparison block (词语辨析) */
+export interface Discrimination {
+  /** Chinese gloss shared by the compared words, e.g. 到达 */
+  tran?: string
+  usages: { word: string; usage: string }[]
+}
+
+/** Encyclopedia digest (百科释义) */
+export interface Encyclopedia {
+  summary: string
+  sourceName: string
+  sourceUrl: string
+}
+
+/**
+ * Third-party / extended dictionary data.
+ *
+ * NOTE: Youdao's `oxford`, `oxfordAdvance*` and `webster` blocks are returned
+ * AES-encrypted (`encryptedData`) and the decryption key lives only in the
+ * Youdao desktop client — it is NOT available on the public web endpoint, so
+ * these sources cannot be captured here. They are intentionally absent.
+ */
+export interface ExtendedDictionaries {
+  collins?: {
+    star?: string
+    entries: CollinsEntry[]
+  }
+  collinsPrimary?: {
+    phonetic?: string
+    audioUrl?: string
+    senses: CollinsPrimarySense[]
+  }
+  etymology?: string
+  discrimination?: Discrimination[]
+  encyclopedia?: Encyclopedia
+  /** Explicit marker: webster/oxford data unavailable (encrypted upstream) */
+  unavailable?: string[]
 }
 
 /**
@@ -48,6 +113,8 @@ export interface DictionaryEntry {
   definitions: Definition[]
   /** Bilingual example sentences */
   examples: Example[]
+  /** Common phrases / collocations (词组短语) */
+  phrases: Phrase[]
   synonyms: string[]
   antonyms: string[]
   /** Derived/related word forms (派生词), e.g. happiness/happily for happy */
@@ -56,6 +123,8 @@ export interface DictionaryEntry {
   exams: string[]
   /** Which provider served this entry */
   source: 'youdao' | 'dictcn'
+  /** Extended third-party dictionary data (Collins / etymology / discrimination / encyclopedia) */
+  extended?: ExtendedDictionaries
 }
 
 /** Result of a lookup — null-ish when the word is not found by any provider */

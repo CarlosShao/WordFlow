@@ -102,6 +102,29 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  backfill:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.api.dev
+    container_name: wordflow-backfill
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://wordflow:wordflow@postgres:5432/wordflow?schema=public
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: info
+    # One pass caps at 20000 entries; container exits when a pass finishes the
+    # whole remainder, then `restart: unless-stopped` re-launches it for the
+    # next pass. After everything is enriched it exits cleanly and stays stopped.
+    command: npx tsx /app/_backfill_extended.ts 20000
+    volumes:
+      - ./src/server/src:/app/src
+      - ./src/server/_backfill_extended.ts:/app/_backfill_extended.ts
+      - wordflow_node_modules:/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:

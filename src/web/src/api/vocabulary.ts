@@ -7,7 +7,52 @@ export interface VocabularyReviewResult {
   nextReviewAt: string
 }
 
+// ── 词典库 payload 结构（来自有道爬取） ─────────────────────────
+export interface DictionaryPayload {
+  word: string
+  phonetic?: { uk?: string; us?: string; ukAudio?: string; usAudio?: string }
+  translations?: { cn: string; pos: string }[]
+  definitions?: { en: string; pos: string; synonyms?: string[] }[]
+  examples?: { cn: string; en: string }[]
+  synonyms?: string[]
+  antonyms?: string[]
+  exams?: string[]
+  source?: string
+}
+
+export interface DictionaryEntry {
+  id: string
+  word: string
+  status: string
+  payload: DictionaryPayload | null
+}
+
 export const vocabularyApi = {
+  // ── 词典库（公共，无需认证） ─────────────────────────────────
+  async getDictionaryList(params?: {
+    page?: number
+    limit?: number
+    keyword?: string
+  }): Promise<PaginatedResponse<DictionaryEntry>> {
+    const data = await client.get('/api/v1/dictionary', {
+      params: params as Record<string, string | number | boolean>,
+    })
+    // 后端返回 { success, data: { items, total, page, pageSize, totalPages } }
+    // client interceptor 返回 body.data = { items, total, page, pageSize, totalPages }
+    const res = data as unknown as PaginatedResponse<DictionaryEntry>
+    if (res && Array.isArray(res.items)) {
+      return res
+    }
+    // fallback
+    return { items: [], total: 0, page: 1, pageSize: 50, totalPages: 0 }
+  },
+
+  async getDictionaryWord(word: string): Promise<DictionaryEntry> {
+    const data = await client.get(`/api/v1/dictionary/${encodeURIComponent(word)}`)
+    return data as unknown as DictionaryEntry
+  },
+
+  // ── 个人生词本（需认证） ─────────────────────────────────────
   async getList(params?: {
     page?: number
     pageSize?: number
@@ -17,7 +62,9 @@ export const vocabularyApi = {
     sortOrder?: 'asc' | 'desc'
   }): Promise<PaginatedResponse<Vocabulary>> {
     const data = await client.get('/api/v1/vocabulary', { params: params as Record<string, string | number | boolean> })
-    return data as unknown as PaginatedResponse<Vocabulary>
+    // 后端返回 { success, data: items[], meta } → interceptor 返回 items 数组
+    const items = Array.isArray(data) ? data as unknown as Vocabulary[] : []
+    return { items, total: items.length, page: 1, pageSize: items.length, totalPages: 1 }
   },
 
   async getById(id: string): Promise<Vocabulary> {
@@ -25,17 +72,14 @@ export const vocabularyApi = {
     return data as unknown as Vocabulary
   },
 
-  // 搜索词汇（后端：GET /api/v1/vocabulary?keyword=...，支持 word/translation 模糊匹配）
   async search(keyword: string): Promise<Vocabulary[]> {
     const data = await client.get('/api/v1/vocabulary', { params: { keyword, limit: 50 } })
-    const resp = data as unknown as PaginatedResponse<Vocabulary>
-    return resp.items ?? []
+    return Array.isArray(data) ? data as unknown as Vocabulary[] : []
   },
 
-  // 待复习词汇（后端：GET /api/v1/vocabulary/due）
   async getReviewList(): Promise<Vocabulary[]> {
     const data = await client.get('/api/v1/vocabulary/due')
-    return (data as unknown as Vocabulary[]) ?? []
+    return Array.isArray(data) ? data as unknown as Vocabulary[] : []
   },
 
   async addWord(word: string, contentId?: string): Promise<Vocabulary> {
