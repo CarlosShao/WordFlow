@@ -78,3 +78,7 @@ backup_*.sql
 
 # scripts/ 是正式脚本目录（与一次性诊断脚本不同），纳入版本管理
 !scripts/**
+
+# Web 本地 env（含真实配置，绝不提交）
+src/web/.env.production
+src/web/.env.development

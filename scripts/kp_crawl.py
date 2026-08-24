@@ -31,14 +31,15 @@ MODEL = "large-v3-turbo"
 WORKDIR = r"D:\AI\w"
 PROGRESS_FILE = os.path.join(WORKDIR, "kp_progress.json")
 
-# Free agnes LLM (primary)
+# LLM keys are NEVER hardcoded — read from environment.
+# Provide AGNES_API_KEY / STEPFUN_API_KEY via your local .env (gitignored).
 AGNES_BASE = "https://api.agnes-ai.cn/v1"
-AGNES_KEY = "***REDACTED_AGNES_KEY***"
+AGNES_KEY = os.getenv("AGNES_API_KEY", "")
 AGNES_MODEL = "agnes-2.5-flash"
 
 # stepfun fallback (used when agnes rate-limits)
 STEPFUN_BASE = "https://api.stepfun.com/step_plan/v1"
-STEPFUN_KEY = "***REDACTED_STEPFUN_KEY***"
+STEPFUN_KEY = os.getenv("STEPFUN_API_KEY", "")
 STEPFUN_MODEL = "step-3.7-flash"
 
 PSQL = ["docker", "exec", "wordflow-postgres", "psql", "-U", "wordflow", "-d", "wordflow", "-t", "-A", "-c"]
