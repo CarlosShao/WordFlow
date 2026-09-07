@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
+import { ZodError } from 'zod'
 
 export const ErrorType = {
   VALIDATION: 'VALIDATION_ERROR',
@@ -34,6 +35,18 @@ export async function errorHandler(
         type: error.type,
         message: error.message,
         ...(error.details ? { details: error.details } : {}),
+      },
+    })
+  }
+
+  // Request body/query failed schema validation (zod .parse in route handlers)
+  if (error instanceof ZodError) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        type: ErrorType.VALIDATION,
+        message: '请求参数校验失败',
+        details: error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
       },
     })
   }

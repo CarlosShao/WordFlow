@@ -104,6 +104,7 @@ export async function authRoutes(app: FastifyInstance) {
         githubId: user.githubId,
         settings: user.settings,
         createdAt: user.createdAt,
+        joinDate: user.createdAt,
       },
     })
   })

@@ -95,14 +95,15 @@ async function callWithProvider(
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${provider.apiKey}`,
     },
-    body: JSON.stringify({
-      model: provider.model,
-      messages,
-      temperature: opts?.temperature ?? 0.7,
-      max_tokens: opts?.maxTokens ?? 4096,
-    }),
-    signal: opts?.signal,
-  })
+      body: JSON.stringify({
+        model: provider.model,
+        messages,
+        temperature: opts?.temperature ?? 0.7,
+        max_tokens: opts?.maxTokens ?? 4096,
+      }),
+      // 默认 120s 兜底超时：慢/挂起的 provider 会转入冷却并切换下一个
+      signal: opts?.signal ?? AbortSignal.timeout(120_000),
+    })
 
   if (!response.ok) {
     const error = await response.text().catch(() => response.statusText)

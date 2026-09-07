@@ -14,7 +14,10 @@ const mistakeQuerySchema = z.object({
 })
 
 const reviewMistakeSchema = z.object({
-  correct: z.boolean(),
+  // 显式设置目标掌握状态（前端「标记为已掌握/复习中」单击即生效）
+  status: z.enum(['NOT_REVIEWED', 'REVIEWING', 'MASTERED']).optional(),
+  // 兼容旧调用方：按复习次数阈值推导状态
+  correct: z.boolean().optional(),
 })
 
 const createMistakeSchema = z.object({
@@ -109,13 +112,21 @@ export async function mistakeRoutes(app: FastifyInstance) {
   app.post('/api/v1/mistakes/:id/review', { preHandler: [app.authenticate] }, async (request, reply) => {
     const userId = request.user!.id
     const { id } = request.params as { id: string }
-    const { correct } = reviewMistakeSchema.parse(request.body)
+    const body = reviewMistakeSchema.parse(request.body)
+    if (body.status === undefined && body.correct === undefined) {
+      throw new AppError('VALIDATION', '需要 status 或 correct 参数', 400)
+    }
 
     const mistake = await prisma.mistake.findFirst({ where: { id, userId } })
     if (!mistake) throw new AppError('NOT_FOUND', '错题不存在', 404)
 
     let masteryStatus = mistake.masteryStatus
-    if (correct) {
+    let masteredAt: Date | null | undefined
+    if (body.status) {
+      // 显式状态：直接设置，不依赖 reviewCount 阈值，也不污染复习计数
+      masteryStatus = body.status
+      masteredAt = body.status === 'MASTERED' ? new Date() : null
+    } else if (body.correct) {
       if (mistake.reviewCount >= 2) masteryStatus = 'MASTERED'
       else masteryStatus = 'REVIEWING'
     } else {
@@ -126,12 +137,13 @@ export async function mistakeRoutes(app: FastifyInstance) {
       where: { id },
       data: {
         masteryStatus,
-        reviewCount: { increment: 1 },
+        ...(masteredAt !== undefined ? { masteredAt } : {}),
+        reviewCount: body.status ? undefined : { increment: 1 },
         lastReviewDate: new Date(),
       },
     })
 
-    logger.info({ userId, mistakeId: id, correct, masteryStatus }, 'Mistake reviewed')
+    logger.info({ userId, mistakeId: id, status: masteryStatus }, 'Mistake reviewed')
     return reply.send({ success: true, data: updated })
   })
 

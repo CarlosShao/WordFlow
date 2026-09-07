@@ -90,6 +90,8 @@ async function callLlm(
     temperature: 0.7,
     max_tokens: 4096,
     }),
+    // 自定义配置直连不走 provider 轮换，必须自带超时兜底
+    signal: AbortSignal.timeout(120_000),
   })
 
   if (!response.ok) {
@@ -229,7 +231,7 @@ export async function aiRoutes(app: FastifyInstance) {
     if (sourceType === 'content' || sourceType === 'direct') {
       systemPrompt = `你是英语出题老师。根据给定的英语文章/内容生成 3-5 道练习题。
 要求：
-1. 只返回 JSON 数组格式：[{"id":"q1","type":"multiple-choice","question":"题目","options":["A选项","B选项","C选项","D选项"],"correctAnswer":"正确选项","difficulty":"B1","explanation":"中文解析"}]
+1. 只返回 JSON 数组格式：[{"id":"q1","type":"multiple-choice","question":"题目","options":["A选项","B选项","C选项","D选项"],"correctAnswer":"正确选项","difficulty":"B1","explanation":"中文解析"}]。其中 "correctAnswer" 的值必须原样复制 options 数组中正确选项的完整文本，绝对禁止返回 "A"/"B"/"C"/"D" 这类字母编号
 2. 题型可选：multiple-choice（选择题）、fill-blank（填空）、true-false（判断）、cloze（完形）
 3. 题目要实用、贴近真实场景，考察阅读理解、词汇、语法等
 4. 解析用中文
@@ -244,7 +246,7 @@ ${sourceText.slice(0, 4000)}
       // vocabulary mode
       systemPrompt = `你是英语出题老师。根据给定的词汇生成 1 道练习题。
 要求：
-- 只返回 JSON 格式：{"type":"题型","stem":"题目","options":["A","B","C","D"],"correctAnswer":"正确答案","explanation":"解析"}
+- 只返回 JSON 格式：{"type":"题型","stem":"题目","options":["A","B","C","D"],"correctAnswer":"正确答案","explanation":"解析"}。若为选择题（MULTIPLE_CHOICE），correctAnswer 必须是 options 数组中某一项的原文，禁止只返回 "A"/"B"/"C"/"D" 这类字母编号
 - 题型可选：MULTIPLE_CHOICE（4 选项单选）、FILL_BLANK（填空）、TRANSLATION（翻译）
 - 题目要实用、贴近真实场景
 - 解析用中文`
@@ -396,9 +398,102 @@ ${sourceText.slice(0, 4000)}
     return reply.send({ success: true, data: assessment, raw: assessment ? undefined : result })
   })
 
+  // 例句搜索（例句库页面）
+  // 数据源：① 词典库 payload.examples 中英双语例句（全库共享，10 万+词目）
+  //        ② 当前用户词汇自带 examples（string[]，附 word/translation 上下文）
+  // difficulty 参数暂无法过滤：两处数据源均无难度字段，接受参数待后续数据补充
+  const exampleSearchSchema = z.object({
+    keyword: z.string().min(1).max(50),
+    source: z.enum(['dictionary', 'vocabulary']).optional(),
+    page: z.coerce.number().min(1).default(1),
+    limit: z.coerce.number().min(1).max(50).default(20),
+  })
+
+  app.get('/api/v1/ai/examples/search', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const q = exampleSearchSchema.parse(request.query)
+    const keyword = q.keyword.trim()
+    const take = q.limit
+    const skip = (q.page - 1) * take
+
+    interface ExampleHit {
+      word: string
+      translation: string | null
+      sentence: string
+      sentenceTranslation: string | null
+      source: 'dictionary' | 'vocabulary'
+    }
+
+    const hits: ExampleHit[] = []
+
+    if (!q.source || q.source === 'dictionary') {
+      // 词形匹配（大小写不敏感）：先精确，无结果再放宽为前缀/包含，各取少量词目
+      let entries = await prisma.dictionaryEntry.findMany({
+        where: { word: { equals: keyword, mode: 'insensitive' }, status: 'DONE' },
+        take: 5,
+      })
+      if (entries.length === 0) {
+        entries = await prisma.dictionaryEntry.findMany({
+          where: { word: { contains: keyword, mode: 'insensitive' }, status: 'DONE' },
+          orderBy: { word: 'asc' },
+          take: 10,
+        })
+      }
+      for (const entry of entries) {
+        const payload = entry.payload as { examples?: { en?: string; cn?: string }[]; translations?: { cn?: string; pos?: string }[] } | null
+        const examples = Array.isArray(payload?.examples) ? payload!.examples : []
+        for (const ex of examples.slice(0, 3)) {
+          if (ex?.en?.trim()) {
+            hits.push({
+              word: entry.word,
+              translation: payload?.translations?.[0]?.cn ?? null,
+              sentence: ex.en.trim(),
+              sentenceTranslation: ex.cn?.trim() || null,
+              source: 'dictionary',
+            })
+          }
+        }
+      }
+    }
+
+    if (!q.source || q.source === 'vocabulary') {
+      // 用户词汇：word/translation 命中即取其自带例句
+      const vocabs = await prisma.vocabulary.findMany({
+        where: {
+          userId: request.user!.id,
+          OR: [
+            { word: { contains: keyword, mode: 'insensitive' } },
+            { translation: { contains: keyword } },
+          ],
+        },
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+      })
+      for (const vocab of vocabs) {
+        const examples = Array.isArray(vocab.examples) ? (vocab.examples as string[]) : []
+        for (const ex of examples.slice(0, 2)) {
+          if (typeof ex === 'string' && ex.trim()) {
+            hits.push({
+              word: vocab.word,
+              translation: vocab.translation,
+              sentence: ex.trim(),
+              sentenceTranslation: null,
+              source: 'vocabulary',
+            })
+          }
+        }
+      }
+    }
+
+    const data = hits.slice(skip, skip + take)
+    return reply.send({
+      success: true,
+      data,
+      meta: { page: q.page, limit: take, total: hits.length, totalPages: Math.ceil(hits.length / take) },
+    })
+  })
+
   // 测试 AI 连接
-  app.post('/api/v1/ai/test-connection', { preHandler: [app.authenticate] }, async (request, reply) => {
-    const body = testConnectionSchema.parse(request.body ?? {})
+  app.post('/api/v1/ai/test-connection', { preHandler: [app.authenticate] }, async (request, reply) => {    const body = testConnectionSchema.parse(request.body ?? {})
     const headerConfig = getCustomAiConfig(request)
 
     // Body params take priority over headers; headers take priority over env defaults

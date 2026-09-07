@@ -23,7 +23,9 @@ const createPracticeSchema = z.object({
   title: z.string().max(200).optional(),
   vocabularyIds: z.array(z.string()).optional(),
   contentId: z.string().optional(),
-  questionTypes: z.array(z.enum(['MULTIPLE_CHOICE', 'FILL_BLANK', 'TRANSLATION', 'LISTENING'])).optional(),
+  questionTypes: z.array(z.enum(['MULTIPLE_CHOICE', 'FILL_BLANK', 'TRANSLATION', 'LISTENING', 'READING_COMPREHENSION'])).optional(),
+  // Vocabulary 暂无 difficulty 列，先接受参数保持前后端契约；按难度过滤待 migration
+  difficulty: z.string().max(20).optional(),
   questionCount: z.number().int().min(1).max(50).default(10),
 })
 
@@ -174,15 +176,23 @@ export async function practiceRoutes(app: FastifyInstance) {
         where: {
           userId_vocabularyId: { userId, vocabularyId: question.vocabularyId },
         },
-        update: { reviewCount: { increment: 1 }, lastWrongAt: new Date() },
+        update: {
+          reviewCount: { increment: 1 },
+          lastWrongAt: new Date(),
+          userAnswer: answer,
+          wrongAnswer: answer,
+          explanation: question.explanation,
+        },
         create: {
           user: { connect: { id: userId } },
           vocabulary: { connect: { id: question.vocabularyId } },
           content: question.contentId ? { connect: { id: question.contentId } } : undefined,
           questionType: question.type,
           question: question.stem,
+          userAnswer: answer,
           wrongAnswer: answer,
           correctAnswer: question.correctAnswer,
+          explanation: question.explanation,
           reviewCount: 1,
           lastWrongAt: new Date(),
         },

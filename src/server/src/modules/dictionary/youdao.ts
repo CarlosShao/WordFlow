@@ -84,6 +84,7 @@ interface YoudaoPayload {
   collins_primary?: {
     words?: { word?: string; indexforms?: string[] }
     gramcat?: Array<{
+      partofspeech?: string
       pronunciation?: string
       audiourl?: string
       senses?: Array<{
