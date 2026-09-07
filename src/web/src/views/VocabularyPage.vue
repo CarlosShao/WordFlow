@@ -124,8 +124,22 @@
           </div>
         </div>
 
-        <!-- Chinese translations -->
-        <div v-if="selectedEntry.payload?.translations?.length" class="detail-section">
+        <!-- Category tabs -->
+        <div v-if="detailTabs.length > 1" class="detail-tabs">
+          <button
+            v-for="tab in detailTabs"
+            :key="tab.key"
+            :class="['detail-tab-btn', { active: activeTab === tab.key }]"
+            @click="activeTab = tab.key"
+          >{{ tab.label }}</button>
+        </div>
+
+        <!-- Tab content -->
+        <div class="detail-tab-body">
+          <!-- 释义 / Overview -->
+          <template v-if="activeTab === 'overview'">
+            <!-- Chinese translations -->
+            <div v-if="selectedEntry.payload?.translations?.length" class="detail-section">
           <h4>中文释义</h4>
           <div v-for="(t, i) in selectedEntry.payload.translations" :key="i" class="detail-translation">
             <span class="pos" v-if="t.pos">{{ t.pos }}</span>
@@ -211,8 +225,12 @@
           </div>
         </div>
 
-        <!-- Collins (完整柯林斯英汉双解 — 按词性分组的全量义项) -->
-        <div v-if="selectedEntry.payload?.extended?.collins?.entries?.length" class="detail-section">
+          </template>
+
+          <!-- 柯林斯 / Collins -->
+          <template v-else-if="activeTab === 'collins'">
+            <!-- Collins (完整柯林斯英汉双解 — 按词性分组的全量义项) -->
+            <div v-if="selectedEntry.payload?.extended?.collins?.entries?.length" class="detail-section">
           <h4>
             柯林斯英汉双解
             <span v-if="selectedEntry.payload.extended.collins.star" class="collins-star" :title="`柯林斯 ${selectedEntry.payload.extended.collins.star} 星级核心词`">
@@ -276,8 +294,12 @@
           </div>
         </div>
 
-        <!-- Discrimination (辨析) -->
-        <div v-if="selectedEntry.payload?.extended?.discrimination?.length" class="detail-section">
+          </template>
+
+          <!-- 辨析 / Discrimination -->
+          <template v-else-if="activeTab === 'discrimination'">
+            <!-- Discrimination (辨析) -->
+            <div v-if="selectedEntry.payload?.extended?.discrimination?.length" class="detail-section">
           <h4>词语辨析</h4>
           <div v-for="(d, i) in selectedEntry.payload.extended.discrimination" :key="i" class="discrimination-block">
             <p v-if="d.tran" class="discrimination-tran">{{ d.tran }}</p>
@@ -288,14 +310,22 @@
           </div>
         </div>
 
-        <!-- Etymology (词源) -->
-        <div v-if="selectedEntry.payload?.extended?.etymology" class="detail-section">
+          </template>
+
+          <!-- 词源 / Etymology -->
+          <template v-else-if="activeTab === 'etymology'">
+            <!-- Etymology (词源) -->
+            <div v-if="selectedEntry.payload?.extended?.etymology" class="detail-section">
           <h4>词源</h4>
           <p class="etymology-text">{{ selectedEntry.payload.extended.etymology }}</p>
         </div>
 
-        <!-- Encyclopedia (百科) -->
-        <div v-if="selectedEntry.payload?.extended?.encyclopedia" class="detail-section">
+          </template>
+
+          <!-- 百科 / Encyclopedia -->
+          <template v-else-if="activeTab === 'encyclopedia'">
+            <!-- Encyclopedia (百科) -->
+            <div v-if="selectedEntry.payload?.extended?.encyclopedia" class="detail-section">
           <h4>百科释义</h4>
           <p class="encyclopedia-text">{{ selectedEntry.payload.extended.encyclopedia.summary }}</p>
           <a
@@ -307,16 +337,24 @@
           >{{ selectedEntry.payload.extended.encyclopedia.sourceName }} →</a>
         </div>
 
-        <!-- Exams -->
-        <div v-if="selectedEntry.payload?.exams?.length" class="detail-section">
+          </template>
+
+          <!-- 考试 / Exams -->
+          <template v-else-if="activeTab === 'exams'">
+            <!-- Exams -->
+            <div v-if="selectedEntry.payload?.exams?.length" class="detail-section">
           <h4>考试范围</h4>
           <div class="tag-list">
             <BaseTag v-for="exam in selectedEntry.payload.exams" :key="exam" size="sm">{{ exam }}</BaseTag>
           </div>
         </div>
 
-        <!-- Source & data quality -->
-        <div v-if="selectedEntry.payload?.source || selectedEntry.payload?.extended?.unavailable?.length" class="detail-section">
+          </template>
+
+          <!-- 来源 / Source -->
+          <template v-else-if="activeTab === 'source'">
+            <!-- Source & data quality -->
+            <div v-if="selectedEntry.payload?.source || selectedEntry.payload?.extended?.unavailable?.length" class="detail-section">
           <h4>数据来源</h4>
           <div v-if="selectedEntry.payload.source" class="tag-row">
             <BaseTag variant="muted" size="sm">{{ selectedEntry.payload.source }}</BaseTag>
@@ -327,6 +365,7 @@
             </svg>
             <span>以下数据未采集：{{ selectedEntry.payload.extended.unavailable.join('、') }}</span>
           </div>
+          </template>
         </div>
       </div>
       <template #footer>
@@ -363,6 +402,28 @@ const collinsVisibleEntries = computed(() => {
   const entries = selectedEntry.value?.payload?.extended?.collins?.entries ?? []
   if (collinsExpanded.value || entries.length <= COLLINS_COLLAPSE_THRESHOLD) return entries
   return entries.slice(0, COLLINS_COLLAPSE_THRESHOLD)
+})
+
+// ── 详情弹窗 Tab 分类（避免单页内容过多需长滚动）──────────────
+type DetailTab = 'overview' | 'collins' | 'discrimination' | 'etymology' | 'encyclopedia' | 'exams' | 'source'
+
+/** 当前选中的 Tab；切换词条时重置回「释义」 */
+const activeTab = ref<DetailTab>('overview')
+
+/** 动态生成可见 Tab：只有该词存在对应数据时，才显示对应分类 Tab */
+const detailTabs = computed<{ key: DetailTab; label: string }[]>(() => {
+  const p = selectedEntry.value?.payload
+  const ext = p?.extended
+  const tabs: { key: DetailTab; label: string }[] = [{ key: 'overview', label: '释义' }]
+  if (ext?.collins?.entries?.length || ext?.collinsPrimary?.senses?.length) {
+    tabs.push({ key: 'collins', label: '柯林斯' })
+  }
+  if (ext?.discrimination?.length) tabs.push({ key: 'discrimination', label: '辨析' })
+  if (ext?.etymology) tabs.push({ key: 'etymology', label: '词源' })
+  if (ext?.encyclopedia) tabs.push({ key: 'encyclopedia', label: '百科' })
+  if (p?.exams?.length) tabs.push({ key: 'exams', label: '考试' })
+  if (p?.source || ext?.unavailable?.length) tabs.push({ key: 'source', label: '来源' })
+  return tabs
 })
 
 /** 把词典词条收藏进生词本（带释义/音标/例句，练习出题依赖这些字段） */
@@ -446,8 +507,9 @@ function changePage(p: number) {
 
 function showDetail(entry: DictionaryEntry) {
   selectedEntry.value = entry
-  // 切换词条时重置柯林斯折叠态，避免沿用上一个词的展开状态
+  // 切换词条时重置柯林斯折叠态与当前 Tab，避免沿用上一个词的状态
   collinsExpanded.value = false
+  activeTab.value = 'overview'
   detailVisible.value = true
 }
 
@@ -646,8 +708,50 @@ onUnmounted(() => {
 /* ── Detail Modal ────────────────────────────────────────────── */
 
 .word-detail {
-  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+
+/* Tab 内容区单独滚动：切换 Tab 时回到顶部，不再整页长滚 */
+.detail-tab-body {
+  flex: 1 1 auto;
   overflow-y: auto;
+  padding-right: 4px;
+}
+
+.detail-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.detail-tab-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.detail-tab-btn:hover {
+  color: var(--color-text);
+}
+
+.detail-tab-btn.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
 }
 
 .detail-header {
@@ -657,6 +761,7 @@ onUnmounted(() => {
   padding-bottom: var(--space-3);
   margin-bottom: var(--space-3);
   border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .detail-word-title {
