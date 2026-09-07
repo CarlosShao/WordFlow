@@ -57,6 +57,19 @@
       <Skeleton variant="card" />
     </section>
 
+    <!-- 加载失败：创建会话失败（无到期词汇/服务错误等）必须可见，不能伪装成空态 -->
+    <ErrorState
+      v-else-if="practice.error"
+      title="练习加载失败"
+      :message="practice.error"
+      @retry="startPractice"
+    />
+    <!-- 无词汇导致失败时给行动引导，而不是让用户对着报错发呆 -->
+    <section v-if="practice.error && practice.error.includes('没有可生成练习的词汇')" class="error-guide">
+      <BaseButton variant="primary" @click="router.push('/vocabulary')">去添加词汇</BaseButton>
+      <span class="error-guide-hint">练习题从你的词汇表生成，先收藏几个单词再回来</span>
+    </section>
+
     <!-- Empty State -->
     <EmptyState
       v-else-if="!practice.currentQuestion && !practice.showResults && practice.totalQuestions === 0"
@@ -65,7 +78,7 @@
     />
 
     <!-- Question Section -->
-    <section v-else-if="practice.currentQuestion" class="question-section">
+    <section v-else-if="practice.currentQuestion && !practice.showResults" class="question-section">
       <!-- Timer -->
       <div v-if="timedMode" class="timer-wrapper">
         <TimerCountdown :seconds="120" :running="true" @time-up="onTimeUp" @update:remaining="remainingTime = $event" />
@@ -89,7 +102,7 @@
         <h3 class="question-text">{{ practice.currentQuestion!.question }}</h3>
 
         <!-- Options -->
-        <div v-if="practice.currentQuestion!.options" class="question-options">
+        <div v-if="practice.currentQuestion!.options && practice.currentQuestion!.options.length" class="question-options">
           <button
             v-for="(option, index) in practice.currentQuestion!.options"
             :key="index"
@@ -106,6 +119,18 @@
           </button>
         </div>
 
+        <!-- 填空/听写：文本输入（后端此类题无选项，此前渲染为空选项列表导致无法作答） -->
+        <div v-if="isTextInputQuestion" class="question-input">
+          <input
+            v-model="textInput"
+            type="text"
+            class="text-input"
+            placeholder="输入答案，回车或点击提交..."
+            :disabled="practice.showAnswer"
+            @keyup.enter="submitTextInput"
+          />
+        </div>
+
         <!-- Explanation -->
         <div v-if="practice.showAnswer" class="question-explanation">
           <h4>解析</h4>
@@ -115,7 +140,7 @@
 
       <!-- Controls -->
       <div class="question-controls">
-        <BaseButton v-if="!practice.showAnswer" variant="secondary" @click="submitAnswer" :disabled="!practice.selectedAnswer">
+        <BaseButton v-if="!practice.showAnswer" variant="secondary" @click="onSubmitClick" :disabled="!canSubmit">
           提交答案
         </BaseButton>
         <BaseButton v-else @click="nextQuestion">
@@ -146,9 +171,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { PageHeader, BaseButton, BaseProgress, Skeleton, EmptyState, Toggle, TimerCountdown, StreakAnimation, PracticeSummary } from '../components'
+import { PageHeader, BaseButton, BaseProgress, Skeleton, EmptyState, ErrorState, Toggle, TimerCountdown, StreakAnimation, PracticeSummary } from '../components'
 import { usePracticeStore } from '../stores/practice'
 import { useToast } from '../composables/useToast'
 import type { PracticeType, CEFRLevel } from '../types'
@@ -162,6 +187,23 @@ const selectedDifficulty = ref<CEFRLevel>('B1')
 const timedMode = ref(false)
 const remainingTime = ref(0)
 const showStreak = ref(false)
+// 填空/听写题的文本答案
+const textInput = ref('')
+
+const isTextInputQuestion = computed(() => {
+  const t = practice.currentQuestion?.type
+  return t === 'fill-blank' || t === 'listening'
+})
+
+// 填空/听写题看输入框内容，选择题看已选选项
+const canSubmit = computed(() =>
+  isTextInputQuestion.value ? !!textInput.value.trim() : !!practice.selectedAnswer
+)
+
+// 切题时清空上一次的输入
+watch(() => practice.currentIndex, () => {
+  textInput.value = ''
+})
 
 const practiceTypes = [
   { value: 'cloze' as PracticeType, label: '完形填空', description: '根据上下文选择正确的单词' },
@@ -198,17 +240,31 @@ function selectAnswer(answer: string) {
 }
 
 async function submitAnswer() {
-  const wasCorrect = practice.currentQuestion?.correctAnswer
   await practice.submitAnswer()
 
-  if (wasCorrect && practice.correctCount > 0) {
-    if (practice.streakCount >= 3) {
-      showStreak.value = true
-    }
+  // 用后端判分结果决定 toast，此前用 correctAnswer 字符串真值判断，答错也弹「回答正确」
+  if (practice.lastCorrect === true) {
+    showStreak.value = practice.streakCount >= 3
     toast.success('回答正确！')
-  } else {
+  } else if (practice.lastCorrect === false) {
     showStreak.value = false
     toast.error('答错了，继续加油！')
+  }
+}
+
+async function submitTextInput() {
+  const value = textInput.value.trim()
+  if (!value || practice.showAnswer) return
+  practice.selectAnswer(value)
+  await submitAnswer()
+}
+
+// 统一提交入口：填空/听写提交输入框内容，选择题提交已选选项
+function onSubmitClick() {
+  if (isTextInputQuestion.value) {
+    void submitTextInput()
+  } else {
+    void submitAnswer()
   }
 }
 
@@ -405,6 +461,20 @@ function onTimeUp() {
   margin-bottom: var(--space-6);
 }
 
+/* 无词汇错误的行动引导 */
+.error-guide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.error-guide-hint {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
 /* Question */
 .question-section {
   max-width: 640px;
@@ -469,6 +539,33 @@ function onTimeUp() {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+/* 填空/听写输入 */
+.question-input {
+  margin-bottom: var(--space-2);
+}
+
+.text-input {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.9375rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(24, 24, 27, 0.08);
+}
+
+.text-input:disabled {
+  background: var(--color-surface-muted);
+  opacity: 0.7;
 }
 
 .option-btn {

@@ -237,6 +237,9 @@ async function generate() {
     const difficulty = item.difficulty || 'B1'
 
     questions.value = await aiService.generateQuestions(contentText, difficulty, 5)
+    if (questions.value.length === 0) {
+      error.value = 'AI 未返回任何题目，请重试或更换内容'
+    }
     emit('questions-generated', questions.value)
   } catch (e: any) {
     error.value = e.message || e?.response?.data?.error || '生成失败，请重试'

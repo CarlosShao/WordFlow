@@ -24,8 +24,11 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserProfile | null>(loadUser())
   const loading = ref(false)
   const error = ref<string | null>(null)
+  // token 的响应式镜像：localStorage 非响应式，纯 computed 读 localStorage 会在
+  // 首次求值后永久缓存（登录前为 false），导致登录后路由守卫仍判定未登录
+  const accessToken = ref<string | null>(getAccessToken())
 
-  const isAuthenticated = computed(() => hasToken())
+  const isAuthenticated = computed(() => !!accessToken.value)
   const initials = computed(() => {
     const name = user.value?.username || '?'
     return name.charAt(0).toUpperCase()
@@ -36,11 +39,17 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(USER_KEY, JSON.stringify(newUser))
   }
 
+  function persistTokens(access: string, refresh: string) {
+    setTokens(access, refresh)
+    accessToken.value = access || null
+  }
+
   function clearAuth() {
     user.value = null
     error.value = null
     localStorage.removeItem(USER_KEY)
     clearTokens()
+    accessToken.value = null
   }
 
   async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
@@ -48,7 +57,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
     try {
       const result = await authApi.login(email, password)
-      setTokens(result.accessToken, result.refreshToken)
+      persistTokens(result.accessToken, result.refreshToken)
       setUser(result.user)
       return { success: true }
     } catch (e) {
@@ -65,7 +74,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
     try {
       const result = await authApi.register(username, email, password)
-      setTokens(result.accessToken, result.refreshToken)
+      persistTokens(result.accessToken, result.refreshToken)
       setUser(result.user)
       return { success: true }
     } catch (e) {
@@ -107,12 +116,9 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function handleOAuthCallback(accessToken: string, refreshToken?: string) {
-    if (refreshToken) {
-      setTokens(accessToken, refreshToken)
-    } else {
-      setTokens(accessToken, '')
-    }
+  function handleOAuthCallback(token: string, refreshToken?: string) {
+    // 参数改名避免遮蔽同名 ref；统一走 persistTokens 更新响应式 token
+    persistTokens(token, refreshToken ?? '')
     // Fetch profile in background to populate user info; auth state is token-based
     fetchProfile()
   }

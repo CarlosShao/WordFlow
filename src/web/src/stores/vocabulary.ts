@@ -128,6 +128,7 @@ export const useVocabularyStore = defineStore('vocabulary', () => {
 
   async function searchExamples(keyword: string, difficulty?: CEFRLevel) {
     examplesLoading.value = true
+    error.value = null
     try {
       exampleResults.value = await examplesApi.search({ keyword, difficulty })
     } catch (e) {

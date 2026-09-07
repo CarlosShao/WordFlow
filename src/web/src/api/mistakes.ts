@@ -1,5 +1,5 @@
 import client from './client'
-import type { MistakeRecord, PracticeType } from '../types'
+import type { MistakeRecord, MistakeMasteryStatus } from '../types'
 
 export interface MistakeStats {
   total: number
@@ -9,14 +9,17 @@ export interface MistakeStats {
 }
 
 export const mistakesApi = {
+  // 后端 mistakeQuerySchema：mastery（大写枚举）/limit/sortBy/sortOrder
+  // 响应 meta（total/totalPages）被 client 拦截器丢弃，这里取后端上限 100 条
   async getList(params?: {
-    masteryStatus?: 'not-reviewed' | 'reviewing' | 'mastered'
-    type?: PracticeType
+    mastery?: MistakeMasteryStatus
     page?: number
-    pageSize?: number
+    limit?: number
   }): Promise<MistakeRecord[]> {
-    const data = await client.get('/api/v1/mistakes', { params: params as Record<string, string | number | boolean> })
-    return data as unknown as MistakeRecord[]
+    const data = await client.get('/api/v1/mistakes', {
+      params: { limit: 100, ...params } as Record<string, string | number | boolean>,
+    })
+    return (data ?? []) as unknown as MistakeRecord[]
   },
 
   async getById(id: string): Promise<MistakeRecord> {
@@ -24,10 +27,9 @@ export const mistakesApi = {
     return data as unknown as MistakeRecord
   },
 
-  // 复习错题（后端：POST /api/v1/mistakes/:id/review，根据 correct 自动更新掌握度）
-  async updateMastery(id: string, status: 'not-reviewed' | 'reviewing' | 'mastered', correct?: boolean): Promise<MistakeRecord> {
-    const isCorrect = correct ?? (status === 'mastered' || status === 'reviewing')
-    const data = await client.post(`/api/v1/mistakes/${id}/review`, { correct: isCorrect })
+  // 显式设置掌握状态（后端：POST /api/v1/mistakes/:id/review body { status }）
+  async updateMastery(id: string, status: MistakeMasteryStatus): Promise<MistakeRecord> {
+    const data = await client.post(`/api/v1/mistakes/${id}/review`, { status })
     return data as unknown as MistakeRecord
   },
 

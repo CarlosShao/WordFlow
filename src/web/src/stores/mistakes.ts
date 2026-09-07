@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { MistakeRecord, PracticeType } from '../types'
+import type { MistakeRecord, MistakeMasteryStatus } from '../types'
 import { mistakesApi, type MistakeStats } from '../api/mistakes'
 
 export const useMistakesStore = defineStore('mistakes', () => {
@@ -13,21 +13,23 @@ export const useMistakesStore = defineStore('mistakes', () => {
   })
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const activeFilter = ref<string>('all')
+  // tab 值与后端 MasteryStatus 枚举一致（大写），'all' 不过滤
+  const activeFilter = ref<MistakeMasteryStatus | 'all'>('all')
 
+  // 服务端已按 activeFilter 过滤（mastery 参数）；本地再兜底一次
   const filteredMistakes = computed(() => {
     if (activeFilter.value === 'all') return mistakes.value
     return mistakes.value.filter(m => m.masteryStatus === activeFilter.value)
   })
 
-  async function fetchList(params?: {
-    masteryStatus?: 'not-reviewed' | 'reviewing' | 'mastered'
-    type?: PracticeType
-  }) {
+  async function fetchList(filter?: MistakeMasteryStatus | 'all') {
     loading.value = true
     error.value = null
     try {
-      mistakes.value = await mistakesApi.getList(params)
+      const target = filter ?? activeFilter.value
+      mistakes.value = await mistakesApi.getList(
+        target === 'all' ? undefined : { mastery: target },
+      )
     } catch (e) {
       error.value = e instanceof Error ? e.message : '加载错题失败'
     } finally {
@@ -43,7 +45,7 @@ export const useMistakesStore = defineStore('mistakes', () => {
     }
   }
 
-  async function updateMastery(id: string, status: 'not-reviewed' | 'reviewing' | 'mastered') {
+  async function updateMastery(id: string, status: MistakeMasteryStatus) {
     try {
       const updated = await mistakesApi.updateMastery(id, status)
       const index = mistakes.value.findIndex(m => m.id === id)
@@ -69,8 +71,10 @@ export const useMistakesStore = defineStore('mistakes', () => {
     }
   }
 
-  function setFilter(filter: string) {
+  async function setFilter(filter: MistakeMasteryStatus | 'all') {
     activeFilter.value = filter
+    // 走服务端过滤，避免超过单页条数时本地筛不全
+    await fetchList(filter)
   }
 
   function reset() {

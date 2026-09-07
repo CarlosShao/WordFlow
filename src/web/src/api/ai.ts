@@ -10,6 +10,22 @@ export interface AIConfig {
 }
 
 /**
+ * LLM 偶尔把 correctAnswer 写成 "A"/"B"/"C"/"D" 字母编号而不是选项全文，
+ * 前端判分用选项全文比较会永远判错——这里归一化为对应选项原文（双保险）。
+ */
+function normalizeCorrectAnswer(raw: any): string {
+  const answer = (raw?.correctAnswer ?? '').toString()
+  const options: unknown[] = Array.isArray(raw?.options) ? raw.options : []
+  const letter = answer.trim().toUpperCase()
+  if (letter.length === 1 && letter >= 'A' && letter <= 'D' && options.length > 0) {
+    const idx = letter.charCodeAt(0) - 65
+    const mapped = options[idx]
+    if (typeof mapped === 'string' && mapped.trim()) return mapped
+  }
+  return answer
+}
+
+/**
  * Build headers for AI requests that carry user-configured API credentials.
  * These headers tell the backend which LLM config to use (user's or default).
  */
@@ -87,7 +103,11 @@ export const aiApi = {
       { headers: buildAiHeaders() },
     )
 
-    if (!data) return []
+    // 后端在 LLM 返回非 JSON 或无可出题内容时 data 为 null——必须显式失败，
+    // 否则组件收空数组静默回到按钮态，用户以为「点了没反应」
+    if (!data) {
+      throw new Error('AI 未能生成题目（返回格式异常），请重试')
+    }
 
     // 后端可能返回数组或单个对象
     const rawItems = Array.isArray(data) ? data : [data]
@@ -98,7 +118,7 @@ export const aiApi = {
       difficulty: (raw.difficulty || difficulty) as CEFRLevel,
       question: raw.question || raw.stem || '',
       options: raw.options || undefined,
-      correctAnswer: raw.correctAnswer ?? '',
+      correctAnswer: normalizeCorrectAnswer(raw),
       explanation: raw.explanation || '',
       points: raw.points || 1,
       tags: raw.tags || [],

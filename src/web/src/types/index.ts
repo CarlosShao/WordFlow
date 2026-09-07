@@ -161,7 +161,8 @@ export interface ExampleSearchResult {
   translation: string
   source: string
   sourceUrl: string
-  difficulty: CEFRLevel
+  /** 后端数据源暂无难度字段，可能为空 */
+  difficulty?: CEFRLevel | null
   wordHighlight: string
   context?: string
 }
@@ -195,15 +196,33 @@ export interface PracticeSession {
 
 // ── Mistakes ───────────────────────────────────────────────────
 
+// 与后端 MasteryStatus 枚举一致（schema.prisma）
+export type MistakeMasteryStatus = 'NOT_REVIEWED' | 'REVIEWING' | 'MASTERED'
+
+// 与后端 GET /api/v1/mistakes 返回的扁平结构一致（questionType/question 为快照字段，无嵌套 question 对象）
 export interface MistakeRecord {
   id: string
-  questionId: string
-  question: PracticeQuestion
-  userAnswer: string | string[]
-  correctAnswer: string | string[]
-  reviewedAt: string
-  masteryStatus: 'not-reviewed' | 'reviewing' | 'mastered'
+  questionId?: string | null
+  vocabularyId?: string | null
+  contentId?: string | null
+  /** 后端 QuestionType 枚举：VOCABULARY/CLOZE/LISTENING/READING_COMPREHENSION 等 */
+  questionType: string
+  /** 题干快照（字符串） */
+  question: string
+  correctAnswer: string
+  userAnswer?: string | null
+  wrongAnswer?: string | null
+  explanation?: string | null
+  /** 后端 Difficulty 枚举：BEGINNER/ELEMENTARY/INTERMEDIATE/UPPER_INTERMEDIATE/ADVANCED/PROFICIENT */
+  difficulty?: string | null
+  masteryStatus: MistakeMasteryStatus
   reviewCount: number
+  lastWrongAt?: string | null
+  lastReviewDate?: string | null
+  nextReviewDate?: string | null
+  createdAt?: string
+  vocabulary?: { word: string; translation: string } | null
+  content?: { title: string } | null
 }
 
 // ── Settings ───────────────────────────────────────────────────

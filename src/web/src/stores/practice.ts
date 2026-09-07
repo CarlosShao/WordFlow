@@ -11,6 +11,8 @@ export const usePracticeStore = defineStore('practice', () => {
   const showAnswer = ref(false)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  // 最近一次提交的判分结果（null=尚未提交或提交失败），供页面 toast 判断对错
+  const lastCorrect = ref<boolean | null>(null)
   const score = ref(0)
   const correctCount = ref(0)
   const streakCount = ref(0)
@@ -57,6 +59,7 @@ export const usePracticeStore = defineStore('practice', () => {
       score.value = 0
       correctCount.value = 0
       streakCount.value = 0
+      lastCorrect.value = null
     } catch (e) {
       error.value = e instanceof Error ? e.message : '加载练习题失败'
     } finally {
@@ -69,6 +72,7 @@ export const usePracticeStore = defineStore('practice', () => {
     if (!answerToSubmit || !currentQuestion.value) return
 
     showAnswer.value = true
+    lastCorrect.value = null
 
     try {
       if (currentSession.value) {
@@ -77,6 +81,7 @@ export const usePracticeStore = defineStore('practice', () => {
           currentQuestion.value.id,
           answerToSubmit,
         )
+        lastCorrect.value = result.correct
         if (result.correct) {
           correctCount.value++
           score.value += result.points
@@ -129,6 +134,7 @@ export const usePracticeStore = defineStore('practice', () => {
     score.value = 0
     correctCount.value = 0
     streakCount.value = 0
+    lastCorrect.value = null
     error.value = null
   }
 
@@ -140,6 +146,7 @@ export const usePracticeStore = defineStore('practice', () => {
     showAnswer,
     loading,
     error,
+    lastCorrect,
     score,
     correctCount,
     streakCount,

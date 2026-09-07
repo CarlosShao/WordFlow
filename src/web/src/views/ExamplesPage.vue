@@ -24,7 +24,7 @@
             v-for="level in difficultyLevels"
             :key="level.value"
             :class="['filter-btn', { active: selectedDifficulty === level.value }]"
-            @click="selectedDifficulty = selectedDifficulty === level.value ? null : level.value"
+            @click="selectDifficulty(level.value)"
           >
             {{ level.label }}
           </button>
@@ -37,12 +37,27 @@
       <Skeleton variant="text" :lines="5" />
     </section>
 
+    <!-- Load Failure: requests failed must be distinguished from "no results", must not be masqueraded as an empty state -->
+    <section v-else-if="vocabStore.error" class="results-section">
+      <ErrorState
+        title="例句搜索失败"
+        :message="vocabStore.error"
+        @retry="search"
+      />
+    </section>
+
     <!-- Results -->
     <section v-else class="results-section">
       <EmptyState
         v-if="results.length === 0 && hasSearched"
         title="没有找到相关例句"
         description="试试其他关键词"
+      />
+
+      <EmptyState
+        v-else-if="results.length === 0"
+        title="搜索例句"
+        description="输入单词或短语，从词典库和你的词汇中查找真实语境例句"
       />
 
       <div v-else class="results-list">
@@ -56,7 +71,7 @@
           </div>
           <div class="example-meta">
             <span class="example-source">{{ example.source }}</span>
-            <span :class="['example-difficulty', `difficulty-${example.difficulty}`]">
+            <span v-if="example.difficulty" :class="['example-difficulty', `difficulty-${example.difficulty}`]">
               {{ example.difficulty }}
             </span>
             <BaseButton size="sm" variant="ghost" @click="addToVocabulary(example)">
@@ -72,7 +87,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useVocabularyStore } from '../stores/vocabulary'
-import { PageHeader, BaseInput, BaseButton, Skeleton, EmptyState, PronunciationBtn } from '../components'
+import { PageHeader, BaseInput, BaseButton, Skeleton, EmptyState, ErrorState, PronunciationBtn } from '../components'
 import { useToast } from '../composables/useToast'
 import { debounce } from '../utils/debounce'
 import type { ExampleSearchResult, CEFRLevel } from '../types'
@@ -102,17 +117,43 @@ const debouncedSearch = debounce(async () => {
     searchQuery.value,
     selectedDifficulty.value || undefined
   )
-  toast.info(`找到 ${results.value.length} 条结果`)
+  // 失败时由 ErrorState 展示错误，不再弹「找到 0 条结果」误导
+  if (!vocabStore.error) {
+    toast.info(`找到 ${results.value.length} 条结果`)
+  }
 }, 300)
 
 async function search() {
   debouncedSearch()
 }
 
+// 难度点击立即生效：已搜索过时直接按新难度重查
+function selectDifficulty(level: CEFRLevel) {
+  selectedDifficulty.value = selectedDifficulty.value === level ? null : level
+  if (hasSearched.value && searchQuery.value.trim()) {
+    search()
+  }
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function highlightText(text: string, highlight: string): string {
-  if (!highlight) return text
-  const regex = new RegExp(`(${highlight})`, 'gi')
-  return text.replace(regex, '<mark>$1</mark>')
+  // 先转义原文再注入 v-html，防止 XSS；关键词转义防止正则注入（如搜 "C++" 崩溃）
+  const safeText = escapeHtml(text)
+  if (!highlight) return safeText
+  const regex = new RegExp(`(${escapeRegExp(escapeHtml(highlight))})`, 'gi')
+  return safeText.replace(regex, '<mark>$1</mark>')
 }
 
 async function addToVocabulary(example: ExampleSearchResult) {

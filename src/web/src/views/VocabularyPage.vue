@@ -1,6 +1,6 @@
 <template>
   <div class="vocabulary-page">
-    <PageHeader title="词汇" :subtitle="`词典库 · 共 ${total.toLocaleString()} 词`" />
+    <PageHeader title="词汇" :subtitle="`词典库 · 共 ${total.toLocaleString()} 词 · 点「+ 生词本」收藏后可用于 AI 练习`" />
 
     <!-- Search + Pagination -->
     <div class="toolbar">
@@ -38,6 +38,13 @@
         <div class="word-card-header">
           <span class="word-card-text">{{ entry.word }}</span>
           <span v-if="entry.payload?.phonetic?.us" class="word-card-phonetic">/{{ entry.payload.phonetic.us }}/</span>
+          <button
+            :class="['add-wordbook-btn', { added: addedWords.has(entry.word) }]"
+            :title="addedWords.has(entry.word) ? '已在生词本' : '加入生词本（可用于 AI 练习）'"
+            @click.stop="addToWordbook(entry)"
+          >
+            {{ addedWords.has(entry.word) ? '✓ 已加入' : '+ 生词本' }}
+          </button>
         </div>
         <div class="word-card-body">
           <p v-if="entry.payload?.translations?.length" class="word-card-translation">
@@ -173,9 +180,43 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'
 import { PageHeader, BaseInput, BaseButton, BaseModal, BaseTag, Skeleton, EmptyState } from '../components'
 import { vocabularyApi, type DictionaryEntry } from '../api/vocabulary'
+import { useToast } from '../composables/useToast'
+
+const toast = useToast()
+
+// 已加入生词本的词（页面级标记，用于按钮态）
+const addedWords = reactive(new Set<string>())
+const addingWords = reactive(new Set<string>())
+
+/** 把词典词条收藏进生词本（带释义/音标/例句，练习出题依赖这些字段） */
+async function addToWordbook(entry: DictionaryEntry) {
+  if (addedWords.has(entry.word) || addingWords.has(entry.word)) return
+  addingWords.add(entry.word)
+  try {
+    const payload = entry.payload as {
+      translations?: { cn?: string }[]
+      phonetic?: { us?: string }
+      examples?: { en?: string }[]
+    } | null
+    await vocabularyApi.addWord(entry.word, {
+      translation: payload?.translations?.map(t => t.cn).join('；') || '',
+      phonetic: payload?.phonetic?.us,
+      examples: (payload?.examples ?? []).map(e => e.en).filter((e): e is string => !!e).slice(0, 2),
+    })
+    addedWords.add(entry.word)
+    toast.success(`「${entry.word}」已加入生词本`)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '加入失败'
+    // 后端对重复收藏返回 409「该词汇已在你的词表中」
+    if (msg.includes('已在')) addedWords.add(entry.word)
+    toast.error(msg)
+  } finally {
+    addingWords.delete(entry.word)
+  }
+}
 
 const entries = ref<DictionaryEntry[]>([])
 const loading = ref(false)
@@ -343,6 +384,33 @@ onUnmounted(() => {
   font-size: 0.75rem;
   color: var(--color-text-muted);
   font-family: var(--font-mono);
+}
+
+/* 收藏进生词本按钮 */
+.add-wordbook-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 3px 10px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: transparent;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.add-wordbook-btn:hover {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+.add-wordbook-btn.added {
+  color: var(--color-success-600);
+  border-color: var(--color-success-600);
+  background: var(--color-success-50);
+  cursor: default;
 }
 
 .word-card-translation {

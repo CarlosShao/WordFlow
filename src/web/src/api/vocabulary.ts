@@ -82,8 +82,19 @@ export const vocabularyApi = {
     return Array.isArray(data) ? data as unknown as Vocabulary[] : []
   },
 
-  async addWord(word: string, contentId?: string): Promise<Vocabulary> {
-    const data = await client.post('/api/v1/vocabulary', { word, contentId })
+  async addWord(
+    word: string,
+    options?: { contentId?: string; translation?: string; phonetic?: string; examples?: string[] }
+  ): Promise<Vocabulary> {
+    const opts = typeof options === 'string' ? { contentId: options as unknown as string } : (options ?? {})
+    const data = await client.post('/api/v1/vocabulary', {
+      word,
+      // translation 为后端必填字段；未提供时给占位避免 400（正常路径应传词典释义）
+      translation: opts.translation || '（释义待补充）',
+      phonetic: opts.phonetic,
+      examples: opts.examples,
+      contentId: opts.contentId,
+    })
     return data as unknown as Vocabulary
   },
 

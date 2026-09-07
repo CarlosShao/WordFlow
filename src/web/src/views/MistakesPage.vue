@@ -24,12 +24,23 @@
 
     <!-- Filters -->
     <section class="filters-section">
-      <BaseTabs v-model="mistakesStore.activeFilter" :tabs="filterTabs" />
+      <BaseTabs
+        :model-value="mistakesStore.activeFilter"
+        :tabs="filterTabs"
+        @update:model-value="onFilterChange"
+      />
     </section>
 
     <!-- Mistakes List -->
     <section class="mistakes-list">
       <Skeleton v-if="mistakesStore.loading" variant="card" />
+
+      <ErrorState
+        v-else-if="mistakesStore.error"
+        title="错题加载失败"
+        :message="mistakesStore.error"
+        @retry="mistakesStore.fetchList()"
+      />
 
       <EmptyState
         v-else-if="mistakesStore.filteredMistakes.length === 0"
@@ -40,48 +51,50 @@
       <div v-for="mistake in mistakesStore.filteredMistakes" :key="mistake.id" class="mistake-card">
         <div class="mistake-header">
           <div class="mistake-meta">
-            <span :class="['mistake-type', `type-${mistake.question.type}`]">
-              {{ getTypeLabel(mistake.question.type) }}
+            <span class="mistake-type">
+              {{ getTypeLabel(mistake.questionType) }}
             </span>
-            <span :class="['mistake-difficulty', `difficulty-${mistake.question.difficulty}`]">
-              {{ mistake.question.difficulty }}
+            <span v-if="mistake.vocabulary?.word" class="mistake-word">
+              {{ mistake.vocabulary.word }}
             </span>
-            <span :class="['mistake-status', `status-${mistake.masteryStatus}`]">
+            <span v-if="mistake.difficulty" :class="['mistake-difficulty', `difficulty-${getDifficultyLevel(mistake.difficulty)}`]">
+              {{ getDifficultyLabel(mistake.difficulty) }}
+            </span>
+            <span :class="['mistake-status', `status-${mistake.masteryStatus.toLowerCase()}`]">
               {{ getStatusLabel(mistake.masteryStatus) }}
             </span>
           </div>
-          <span class="mistake-date">{{ formatDate(mistake.reviewedAt) }}</span>
+          <span class="mistake-date">{{ formatDate(mistake.lastWrongAt ?? mistake.createdAt) }}</span>
         </div>
 
         <div class="mistake-question">
-          <p v-if="mistake.question.passage" class="mistake-passage">{{ mistake.question.passage }}</p>
           <div class="mistake-question-row">
-            <h3>{{ mistake.question.question }}</h3>
-            <PronunciationBtn :text="mistake.question.question" size="sm" />
+            <h3>{{ mistake.question }}</h3>
+            <PronunciationBtn :text="mistake.question" size="sm" />
           </div>
         </div>
 
         <div class="mistake-answers">
           <div class="answer-item wrong">
             <span class="answer-label">你的答案</span>
-            <span class="answer-value">{{ Array.isArray(mistake.userAnswer) ? mistake.userAnswer.join(', ') : mistake.userAnswer }}</span>
+            <span class="answer-value">{{ mistake.userAnswer ?? mistake.wrongAnswer ?? '—' }}</span>
           </div>
           <div class="answer-item correct">
             <span class="answer-label">正确答案</span>
-            <span class="answer-value">{{ Array.isArray(mistake.correctAnswer) ? mistake.correctAnswer.join(', ') : mistake.correctAnswer }}</span>
+            <span class="answer-value">{{ mistake.correctAnswer }}</span>
           </div>
         </div>
 
         <div class="mistake-explanation">
           <h4>解析</h4>
-          <p>{{ mistake.question.explanation }}</p>
+          <p>{{ mistake.explanation || '暂无解析' }}</p>
         </div>
 
         <div class="mistake-actions">
-          <BaseButton size="sm" variant="secondary" @click="updateStatus(mistake.id, 'reviewing')">
+          <BaseButton size="sm" variant="secondary" @click="updateStatus(mistake.id, 'REVIEWING')">
             标记为复习中
           </BaseButton>
-          <BaseButton size="sm" variant="primary" @click="updateStatus(mistake.id, 'mastered')">
+          <BaseButton size="sm" variant="primary" @click="updateStatus(mistake.id, 'MASTERED')">
             标记为已掌握
           </BaseButton>
         </div>
@@ -92,19 +105,19 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { PageHeader, BaseTabs, BaseButton, Skeleton, EmptyState, PronunciationBtn } from '../components'
+import { PageHeader, BaseTabs, BaseButton, Skeleton, EmptyState, ErrorState, PronunciationBtn } from '../components'
 import { useMistakesStore } from '../stores/mistakes'
 import { useToast } from '../composables/useToast'
-import type { PracticeType } from '../types'
+import type { MistakeMasteryStatus } from '../types'
 
 const mistakesStore = useMistakesStore()
 const toast = useToast()
 
 const filterTabs = [
   { value: 'all', label: '全部' },
-  { value: 'not-reviewed', label: '待复习' },
-  { value: 'reviewing', label: '复习中' },
-  { value: 'mastered', label: '已掌握' }
+  { value: 'NOT_REVIEWED', label: '待复习' },
+  { value: 'REVIEWING', label: '复习中' },
+  { value: 'MASTERED', label: '已掌握' }
 ]
 
 onMounted(() => {
@@ -112,38 +125,62 @@ onMounted(() => {
   mistakesStore.fetchStats()
 })
 
-function getTypeLabel(type: PracticeType): string {
-  const labels: Record<PracticeType, string> = {
-    'cloze': '完形填空',
-    'reading-comprehension': '阅读理解',
-    'grammar': '语法',
-    'listening': '听力',
-    'sentence-correction': '句子改错',
-    'fill-blank': '填空',
-    'true-false': '判断',
-    'multiple-choice': '选择',
-    'ordering': '排序'
+function onFilterChange(value: unknown) {
+  mistakesStore.setFilter(value as MistakeMasteryStatus | 'all')
+}
+
+// 后端 QuestionType 枚举 → 中文标签
+function getTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    'VOCABULARY': '词义',
+    'MULTIPLE_CHOICE': '选择',
+    'CLOZE': '完形填空',
+    'FILL_BLANK': '填空',
+    'LISTENING': '听写',
+    'READING_COMPREHENSION': '阅读理解',
+    'GRAMMAR': '语法',
+    'TRANSLATION': '翻译'
   }
   return labels[type] || type
 }
 
-function getStatusLabel(status: string): string {
+// 后端 Difficulty 枚举 → CEFR 显示（复用现有 difficulty-A1... 样式）
+function getDifficultyLevel(difficulty: string): string {
+  const levels: Record<string, string> = {
+    'BEGINNER': 'A1',
+    'ELEMENTARY': 'A2',
+    'INTERMEDIATE': 'B1',
+    'UPPER_INTERMEDIATE': 'B2',
+    'ADVANCED': 'C1',
+    'PROFICIENT': 'C2'
+  }
+  return levels[difficulty] || difficulty
+}
+
+function getDifficultyLabel(difficulty: string): string {
+  return getDifficultyLevel(difficulty)
+}
+
+function getStatusLabel(status: MistakeMasteryStatus | string): string {
   const labels: Record<string, string> = {
-    'not-reviewed': '待复习',
-    'reviewing': '复习中',
-    'mastered': '已掌握'
+    'NOT_REVIEWED': '待复习',
+    'REVIEWING': '复习中',
+    'MASTERED': '已掌握'
   }
   return labels[status] || status
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('zh-CN')
+function formatDate(dateStr?: string | null): string {
+  if (!dateStr) return '—'
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('zh-CN')
 }
 
-async function updateStatus(id: string, status: 'not-reviewed' | 'reviewing' | 'mastered') {
+async function updateStatus(id: string, status: MistakeMasteryStatus) {
   const result = await mistakesStore.updateMastery(id, status)
   if (result.success) {
-    toast.success('已更新掌握状态')
+    toast.success(status === 'MASTERED' ? '已标记为掌握' : '已标记为复习中')
   } else {
     toast.error(result.error || '更新失败')
   }
@@ -245,6 +282,17 @@ async function updateStatus(id: string, status: 'not-reviewed' | 'reviewing' | '
   border-radius: var(--radius-sm);
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
+}
+
+.mistake-word {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
 }
 
 .mistake-difficulty {

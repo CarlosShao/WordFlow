@@ -5,7 +5,9 @@ import type { PracticeQuestion, PracticeType, CEFRLevel, PracticeSession } from 
 const PRACTICE_TYPE_TO_QUESTION_TYPES: Record<string, string[]> = {
   'cloze': ['FILL_BLANK'],
   'fill-blank': ['FILL_BLANK'],
-  'reading-comprehension': ['READING_COMPREHENSION'],
+  // 本地规则出题生成不了带文章的阅读理解（会产出无选项死题），先用词义选择题兜底；
+  // 后端枚举已支持 READING_COMPREHENSION，供基于内容/AI 出题使用
+  'reading-comprehension': ['MULTIPLE_CHOICE'],
   'grammar': ['MULTIPLE_CHOICE'],
   'sentence-correction': ['MULTIPLE_CHOICE'],
   'listening': ['LISTENING'],
@@ -25,7 +27,7 @@ const PRACTICE_TYPE_TO_QUESTION_TYPES: Record<string, string[]> = {
 function normalizeQuestion(q: Record<string, unknown>, difficulty: CEFRLevel): PracticeQuestion {
   return {
     id: q.id as string,
-    type: (q.type as PracticeType) ?? 'multiple-choice',
+    type: normalizeQuestionType(q.type as string),
     difficulty,
     question: (q.stem as string) ?? (q.question as string) ?? '',
     passage: (q.passage as string) ?? undefined,
@@ -35,6 +37,23 @@ function normalizeQuestion(q: Record<string, unknown>, difficulty: CEFRLevel): P
     points: 1,
     tags: [],
   }
+}
+
+// 后端 QuestionType 枚举（CLOZE/VOCABULARY...）→ 前端 PracticeType
+const BACKEND_TYPE_TO_FRONTEND: Record<string, PracticeType> = {
+  CLOZE: 'fill-blank',
+  FILL_BLANK: 'fill-blank',
+  LISTENING: 'listening',
+  VOCABULARY: 'multiple-choice',
+  MULTIPLE_CHOICE: 'multiple-choice',
+  READING_COMPREHENSION: 'reading-comprehension',
+  GRAMMAR: 'grammar',
+  TRANSLATION: 'fill-blank',
+}
+
+function normalizeQuestionType(type: string | undefined): PracticeType {
+  if (type && BACKEND_TYPE_TO_FRONTEND[type]) return BACKEND_TYPE_TO_FRONTEND[type]
+  return 'multiple-choice'
 }
 
 export interface AnswerResult {
@@ -56,6 +75,7 @@ export const practiceApi = {
       questionTypes: PRACTICE_TYPE_TO_QUESTION_TYPES[String(params.type)] ?? ['MULTIPLE_CHOICE'],
       questionCount: params.questionCount ?? 10,
       contentId: params.contentId,
+      difficulty: params.difficulty,
       title: `练习 ${new Date().toLocaleDateString('zh-CN')}`,
     })
     const session = data as unknown as {
@@ -79,7 +99,7 @@ export const practiceApi = {
     limit?: number
   }): Promise<PracticeQuestion[]> {
     const session = await this.createSession({
-      type: params?.type ?? 'VOCABULARY',
+      type: params?.type ?? 'multiple-choice',
       difficulty: params?.difficulty,
       questionCount: params?.limit ?? 10,
     })
@@ -107,7 +127,7 @@ export const practiceApi = {
   },
 
   // 直接提交（无会话）—— 后端要求会话，必须走 submitAnswer
-  async submitAnswerDirect(questionId: string, answer: string | string[]): Promise<AnswerResult> {
+  async submitAnswerDirect(_questionId: string, _answer: string | string[]): Promise<AnswerResult> {
     throw new Error('需要会话才能提交答案，请先创建练习会话')
   },
 
@@ -132,7 +152,7 @@ export const practiceApi = {
     }
     return {
       id: session.id,
-      type: 'VOCABULARY',
+      type: 'multiple-choice',
       questions: (session.questions ?? []).map((q) => normalizeQuestion(q, 'B1')),
       startedAt: new Date().toISOString(),
       totalPoints: session.totalQuestions ?? (session.questions?.length ?? 0),
