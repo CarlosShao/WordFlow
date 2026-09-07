@@ -365,6 +365,7 @@
             </svg>
             <span>以下数据未采集：{{ selectedEntry.payload.extended.unavailable.join('、') }}</span>
           </div>
+        </div>
           </template>
         </div>
       </div>
