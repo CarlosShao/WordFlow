@@ -6,7 +6,7 @@
 
 <script setup lang="ts">
 interface Props {
-  variant?: 'default' | 'primary' | 'success' | 'danger' | 'muted'
+  variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'muted'
   size?: 'sm' | 'md'
 }
 
@@ -64,5 +64,11 @@ withDefaults(defineProps<Props>(), {
 .muted {
   background: transparent;
   color: var(--color-text-muted);
+}
+
+.warning {
+  background: var(--color-warning-50);
+  color: var(--color-warning-700);
+  border: 1px solid var(--color-warning-200);
 }
 </style>

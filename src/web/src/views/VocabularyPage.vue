@@ -1,6 +1,18 @@
 <template>
   <div class="vocabulary-page">
-    <PageHeader title="词汇" :subtitle="`词典库 · 共 ${total.toLocaleString()} 词 · 点「+ 生词本」收藏后可用于 AI 练习`" />
+    <!-- Header with quick access to wordbook -->
+    <div class="page-header-row">
+      <PageHeader
+        title="词汇"
+        :subtitle="`词典库 · 共 ${total.toLocaleString()} 词 · 点「+ 生词本」收藏后可用于 AI 练习`"
+      />
+      <BaseButton variant="primary" size="sm" @click="router.push('/wordbook')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+        我的生词本
+      </BaseButton>
+    </div>
 
     <!-- Search + Pagination -->
     <div class="toolbar">
@@ -156,12 +168,110 @@
           </div>
         </div>
 
-        <!-- Synonyms -->
-        <div v-if="selectedEntry.payload?.synonyms?.length" class="detail-section">
-          <h4>同义词</h4>
-          <div class="tag-list">
-            <BaseTag v-for="syn in selectedEntry.payload.synonyms" :key="syn" size="sm">{{ syn }}</BaseTag>
+        <!-- Synonyms / Antonyms -->
+        <div v-if="selectedEntry.payload?.synonyms?.length || selectedEntry.payload?.antonyms?.length" class="detail-section">
+          <h4>同义词 / 反义词</h4>
+          <div v-if="selectedEntry.payload.synonyms?.length" class="tag-row">
+            <span class="tag-row-label">近</span>
+            <BaseTag v-for="syn in selectedEntry.payload.synonyms" :key="syn" variant="primary" size="sm">{{ syn }}</BaseTag>
           </div>
+          <div v-if="selectedEntry.payload.antonyms?.length" class="tag-row">
+            <span class="tag-row-label">反</span>
+            <BaseTag v-for="ant in selectedEntry.payload.antonyms" :key="ant" variant="danger" size="sm">{{ ant }}</BaseTag>
+          </div>
+        </div>
+
+        <!-- Related Words (派生词) -->
+        <div v-if="selectedEntry.payload?.relatedWords?.length" class="detail-section">
+          <h4>派生词</h4>
+          <div class="related-words-list">
+            <div v-for="(rw, i) in selectedEntry.payload.relatedWords" :key="i" class="related-word-item">
+              <span v-if="rw.pos" class="pos">{{ rw.pos }}</span>
+              <span class="related-word">{{ rw.word }}</span>
+              <span v-if="rw.translation" class="related-translation">{{ rw.translation }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phrases (词组短语) -->
+        <div v-if="selectedEntry.payload?.phrases?.length" class="detail-section">
+          <h4>词组短语</h4>
+          <div class="phrases-list">
+            <div v-for="(p, i) in selectedEntry.payload.phrases" :key="i" class="phrase-item">
+              <span class="phrase-text">{{ p.phrase }}</span>
+              <span class="phrase-translations">
+                <template v-for="(pt, j) in p.translations" :key="j">
+                  <span v-if="pt.pos" class="pos">{{ pt.pos }}</span>
+                  <span class="phrase-cn">{{ pt.cn }}</span>
+                  <span v-if="j < p.translations.length - 1" class="phrase-sep">；</span>
+                </template>
+              </span>
+              <span v-if="p.source" class="phrase-source">{{ p.source }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Collins Primary (柯林斯精选) -->
+        <div v-if="selectedEntry.payload?.extended?.collinsPrimary?.senses?.length" class="detail-section">
+          <h4>
+            柯林斯精选
+            <span v-if="selectedEntry.payload.extended.collinsPrimary.phonetic" class="collins-phonetic">
+              /{{ selectedEntry.payload.extended.collinsPrimary.phonetic }}/
+            </span>
+            <button
+              v-if="selectedEntry.payload.extended.collinsPrimary.audioUrl"
+              class="audio-btn"
+              title="播放柯林斯发音"
+              @click="playAudio(selectedEntry.payload.extended.collinsPrimary.audioUrl)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <path d="M15.54 8.46a5 5 0 010 7.07" />
+                <path d="M19.07 4.93a10 10 0 010 14.14" />
+              </svg>
+            </button>
+          </h4>
+          <div v-for="(sense, i) in selectedEntry.payload.extended.collinsPrimary.senses" :key="i" class="collins-sense">
+            <div class="collins-sense-header">
+              <span v-if="sense.pos" class="pos">{{ sense.pos }}</span>
+              <span class="collins-def">{{ sense.def }}</span>
+            </div>
+            <div v-for="(c, j) in sense.examples" :key="j" class="collins-example">
+              <p class="collins-en">{{ c.en }}</p>
+              <p class="collins-cn">{{ c.cn }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Discrimination (辨析) -->
+        <div v-if="selectedEntry.payload?.extended?.discrimination?.length" class="detail-section">
+          <h4>词语辨析</h4>
+          <div v-for="(d, i) in selectedEntry.payload.extended.discrimination" :key="i" class="discrimination-block">
+            <p v-if="d.tran" class="discrimination-tran">{{ d.tran }}</p>
+            <div v-for="(u, j) in d.usages" :key="j" class="discrimination-usage">
+              <BaseTag size="sm">{{ u.word }}</BaseTag>
+              <span>{{ u.usage }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Etymology (词源) -->
+        <div v-if="selectedEntry.payload?.extended?.etymology" class="detail-section">
+          <h4>词源</h4>
+          <p class="etymology-text">{{ selectedEntry.payload.extended.etymology }}</p>
+        </div>
+
+        <!-- Encyclopedia (百科) -->
+        <div v-if="selectedEntry.payload?.extended?.encyclopedia" class="detail-section">
+          <h4>百科释义</h4>
+          <p class="encyclopedia-text">{{ selectedEntry.payload.extended.encyclopedia.summary }}</p>
+          <a
+            v-if="selectedEntry.payload.extended.encyclopedia.sourceUrl"
+            class="encyclopedia-link"
+            :href="selectedEntry.payload.extended.encyclopedia.sourceUrl"
+            target="_blank"
+            rel="noopener"
+          >{{ selectedEntry.payload.extended.encyclopedia.sourceName }} →</a>
         </div>
 
         <!-- Exams -->
@@ -169,6 +279,20 @@
           <h4>考试范围</h4>
           <div class="tag-list">
             <BaseTag v-for="exam in selectedEntry.payload.exams" :key="exam" size="sm">{{ exam }}</BaseTag>
+          </div>
+        </div>
+
+        <!-- Source & data quality -->
+        <div v-if="selectedEntry.payload?.source || selectedEntry.payload?.extended?.unavailable?.length" class="detail-section">
+          <h4>数据来源</h4>
+          <div v-if="selectedEntry.payload.source" class="tag-row">
+            <BaseTag variant="muted" size="sm">{{ selectedEntry.payload.source }}</BaseTag>
+          </div>
+          <div v-if="selectedEntry.payload.extended?.unavailable?.length" class="data-note">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>以下数据未采集：{{ selectedEntry.payload.extended.unavailable.join('、') }}</span>
           </div>
         </div>
       </div>
@@ -181,10 +305,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { PageHeader, BaseInput, BaseButton, BaseModal, BaseTag, Skeleton, EmptyState } from '../components'
 import { vocabularyApi, type DictionaryEntry } from '../api/vocabulary'
 import { useToast } from '../composables/useToast'
 
+const router = useRouter()
 const toast = useToast()
 
 // 已加入生词本的词（页面级标记，用于按钮态）
@@ -580,6 +706,242 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+/* ── Page Header Row (with quick action button) ─────────────── */
+
+.page-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.page-header-row :deep(.page-header) {
+  margin-bottom: 0;
+}
+
+/* ── Tag Row (syn / ant side-by-side) ───────────────────────── */
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.tag-row-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  margin-right: 4px;
+}
+
+/* ── Related Words ──────────────────────────────────────────── */
+
+.related-words-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.related-word-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 0.8125rem;
+  padding: 4px 8px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+}
+
+.related-word {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.related-translation {
+  color: var(--color-text-muted);
+  margin-left: auto;
+  font-size: 0.75rem;
+}
+
+/* ── Phrases ────────────────────────────────────────────────── */
+
+.phrases-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.phrase-item {
+  padding: 6px 10px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.phrase-text {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.phrase-translations {
+  color: var(--color-text-muted);
+}
+
+.phrase-cn {
+  margin-right: 4px;
+}
+
+.phrase-sep {
+  color: var(--color-text-muted);
+  margin-right: 4px;
+}
+
+.phrase-source {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ── Collins Primary ────────────────────────────────────────── */
+
+.collins-phonetic {
+  display: inline-block;
+  margin-left: 8px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.detail-section h4 .audio-btn {
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.collins-sense {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  font-size: 0.875rem;
+}
+
+.collins-sense-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: 4px;
+}
+
+.collins-def {
+  color: var(--color-text);
+}
+
+.collins-example {
+  margin-top: 4px;
+  padding-left: 44px;
+}
+
+.collins-en {
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.collins-cn {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+}
+
+/* ── Discrimination ─────────────────────────────────────────── */
+
+.discrimination-block {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+}
+
+.discrimination-tran {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 6px;
+}
+
+.discrimination-usage {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+
+/* ── Etymology / Encyclopedia ───────────────────────────────── */
+
+.etymology-text,
+.encyclopedia-text {
+  font-size: 0.875rem;
+  color: var(--color-text);
+  line-height: 1.7;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.encyclopedia-link {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.encyclopedia-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Data Note ──────────────────────────────────────────────── */
+
+.data-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  padding: 6px 10px;
+  background: var(--color-warning-50);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-warning-200);
+}
+
+.data-note svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--color-warning-600);
 }
 
 /* ── Audio Button ────────────────────────────────────────────── */
