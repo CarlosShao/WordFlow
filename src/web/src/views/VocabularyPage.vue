@@ -211,7 +211,40 @@
           </div>
         </div>
 
-        <!-- Collins Primary (柯林斯精选) -->
+        <!-- Collins (完整柯林斯英汉双解 — 按词性分组的全量义项) -->
+        <div v-if="selectedEntry.payload?.extended?.collins?.entries?.length" class="detail-section">
+          <h4>
+            柯林斯英汉双解
+            <span v-if="selectedEntry.payload.extended.collins.star" class="collins-star" :title="`柯林斯 ${selectedEntry.payload.extended.collins.star} 星级核心词`">
+              <span v-for="n in Number(selectedEntry.payload.extended.collins.star)" :key="n">★</span>
+            </span>
+            <span class="collins-count">{{ selectedEntry.payload.extended.collins.entries.length }} 个义项</span>
+          </h4>
+          <div
+            v-for="(entry, i) in collinsVisibleEntries"
+            :key="i"
+            class="collins-entry"
+          >
+            <div class="collins-entry-header">
+              <span v-if="entry.pos" class="collins-pos">{{ entry.pos }}</span>
+              <span v-if="entry.posTips" class="collins-postips">{{ entry.posTips }}</span>
+            </div>
+            <p class="collins-entry-def">{{ entry.def }}</p>
+            <div v-for="(ex, j) in entry.examples" :key="j" class="collins-example">
+              <p class="collins-en">{{ ex.en }}</p>
+              <p class="collins-cn">{{ ex.cn }}</p>
+            </div>
+          </div>
+          <button
+            v-if="collinsEntryCount > COLLINS_COLLAPSE_THRESHOLD"
+            class="collins-toggle"
+            @click="collinsExpanded = !collinsExpanded"
+          >
+            {{ collinsExpanded ? '收起' : `展开剩余 ${collinsEntryCount - COLLINS_COLLAPSE_THRESHOLD} 个义项` }}
+          </button>
+        </div>
+
+        <!-- Collins Primary (柯林斯精选 — 精简核心义项，含独立发音) -->
         <div v-if="selectedEntry.payload?.extended?.collinsPrimary?.senses?.length" class="detail-section">
           <h4>
             柯林斯精选
@@ -317,6 +350,21 @@ const toast = useToast()
 const addedWords = reactive(new Set<string>())
 const addingWords = reactive(new Set<string>())
 
+// 完整柯林斯义项可能很多（实测 mind/hand 达 37 个），超过阈值折叠
+const COLLINS_COLLAPSE_THRESHOLD = 8
+const collinsExpanded = ref(false)
+
+const collinsEntryCount = computed(
+  () => selectedEntry.value?.payload?.extended?.collins?.entries?.length ?? 0
+)
+
+/** 折叠时只取前 N 个义项；展开则全取 */
+const collinsVisibleEntries = computed(() => {
+  const entries = selectedEntry.value?.payload?.extended?.collins?.entries ?? []
+  if (collinsExpanded.value || entries.length <= COLLINS_COLLAPSE_THRESHOLD) return entries
+  return entries.slice(0, COLLINS_COLLAPSE_THRESHOLD)
+})
+
 /** 把词典词条收藏进生词本（带释义/音标/例句，练习出题依赖这些字段） */
 async function addToWordbook(entry: DictionaryEntry) {
   if (addedWords.has(entry.word) || addingWords.has(entry.word)) return
@@ -398,6 +446,8 @@ function changePage(p: number) {
 
 function showDetail(entry: DictionaryEntry) {
   selectedEntry.value = entry
+  // 切换词条时重置柯林斯折叠态，避免沿用上一个词的展开状态
+  collinsExpanded.value = false
   detailVisible.value = true
 }
 
@@ -819,6 +869,86 @@ onUnmounted(() => {
   font-size: 0.6875rem;
   color: var(--color-text-muted);
   font-style: italic;
+}
+
+/* ── Collins (full bilingual) ───────────────────────────────── */
+
+.collins-star {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  color: var(--color-warning-600);
+  text-transform: none;
+}
+
+.collins-count {
+  display: inline-block;
+  margin-left: 8px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+}
+
+.collins-entry {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  border-left: 2px solid var(--color-warning-300);
+}
+
+.collins-entry-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: 4px;
+}
+
+.collins-pos {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--color-warning-700);
+  background: var(--color-warning-50);
+  border: 1px solid var(--color-warning-200);
+  border-radius: 3px;
+  font-style: normal;
+}
+
+.collins-postips {
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+}
+
+.collins-entry-def {
+  font-size: 0.875rem;
+  color: var(--color-text);
+  line-height: 1.65;
+  margin: 0 0 4px;
+}
+
+.collins-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-primary);
+  background: transparent;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.collins-toggle:hover {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
 }
 
 /* ── Collins Primary ────────────────────────────────────────── */
