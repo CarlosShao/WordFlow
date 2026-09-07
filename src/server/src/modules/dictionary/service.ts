@@ -36,12 +36,15 @@ export async function getWordDefinition(rawWord: string): Promise<LookupResult> 
   const redis = getRedis()
   const key = cacheKey(word)
 
-  // 1) Cache hit
+  // 1) Cache hit — only short-circuits when a REAL entry was cached.
+  //    A cached "null" (not-found miss) must NOT skip the DB/provider lookup,
+  //    because the DB may have been backfilled later (e.g. the crawled
+  //    dictionary_entries table now carries full Collins data).
   try {
     const cached = await redis.get(key)
     if (cached) {
       const parsed = JSON.parse(cached) as DictionaryEntry | null
-      return parsed
+      if (parsed) return parsed
     }
   } catch (err) {
     logger.warn({ err, word }, 'Dictionary cache read failed')
